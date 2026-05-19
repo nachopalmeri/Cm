@@ -1,10 +1,12 @@
 """Substack RSS client — public feed, no auth required."""
 from __future__ import annotations
 
+import ipaddress
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from urllib.parse import urlparse
 
 import feedparser
 import httpx
@@ -35,6 +37,7 @@ class SubstackClient:
         Returns a list of normalized dicts with keys:
             title, summary, published, link, categories
         """
+        self._validate_host(substack_url)
         feed_url = self._build_feed_url(substack_url)
 
         try:
@@ -58,6 +61,35 @@ class SubstackClient:
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_host(url: str) -> None:
+        """Validate URL host to prevent SSRF.
+
+        Rejects:
+        - Non-HTTP(S) schemes
+        - localhost / loopback addresses
+        - Private IP ranges (10.x, 172.16-31, 192.168.x, 169.254.x)
+        """
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(f"Invalid URL scheme: {parsed.scheme}")
+
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("URL has no valid hostname")
+
+        host_lower = hostname.lower()
+        if host_lower in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+            raise ValueError(f"Host not allowed: {hostname}")
+
+        try:
+            addr = ipaddress.ip_address(hostname)
+        except ValueError:
+            return
+
+        if addr.is_private or addr.is_loopback or addr.is_link_local:
+            raise ValueError(f"Host not allowed: {hostname}")
 
     @staticmethod
     def _build_feed_url(url: str) -> str:
