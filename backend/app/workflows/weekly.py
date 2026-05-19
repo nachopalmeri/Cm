@@ -1,7 +1,6 @@
 """Weekly content planning workflow — Orchestrator-driven pipeline."""
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from app.agents.contracts import AgentInput
@@ -22,13 +21,13 @@ from app.schemas.workflow import WorkflowRun
 logger = logging.getLogger(__name__)
 
 
-def run_weekly_content_plan(
+async def run_weekly_content_plan(
     brief: WeeklyBrief,
     brand: BrandProfile,
     memory_context: list[MemoryItem] | None = None,
     llm: LLMProvider | None = None,
 ) -> WorkflowRun:
-    """Run the weekly content planning workflow synchronously.
+    """Run the weekly content planning workflow asynchronously.
 
     Creates an Orchestrator with the given LLM provider (defaults to MockLLM)
     and executes the Strategist → Writer → Editor pipeline.
@@ -53,24 +52,10 @@ def run_weekly_content_plan(
         previous_outputs={},
     )
 
-    loop = _get_or_create_event_loop()
-    return loop.run_until_complete(orchestrator.run(agent_input))
+    return await orchestrator.run(agent_input)
 
 
-def _get_or_create_event_loop() -> asyncio.AbstractEventLoop:
-    """Get an existing event loop or create a new one."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            raise RuntimeError("Event loop is closed")
-        return loop
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop
-
-
-def enrich_brief_from_social(
+async def enrich_brief_from_social(
     brief: WeeklyBrief,
     brand: BrandProfile,
     social_sources: SocialSources,
@@ -82,10 +67,7 @@ def enrich_brief_from_social(
     brief on any error.
     """
     try:
-        loop = _get_or_create_event_loop()
-        return loop.run_until_complete(
-            _async_enrich(brief, brand, social_sources)
-        )
+        return await _async_enrich(brief, brand, social_sources)
     except Exception:
         logger.exception("Social enrichment failed, using original brief")
         return brief

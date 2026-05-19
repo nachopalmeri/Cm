@@ -1,7 +1,6 @@
 """Telegram bot entrypoint — v0.4.0 approval UX with TikTok Pack review."""
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -191,8 +190,7 @@ async def weekly(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.effective_message.reply_text("⏳ Ejecutando workflow semanal con MockLLM…")
 
     try:
-        workflow_run = await asyncio.to_thread(
-            run_weekly_content_plan,
+        workflow_run = await run_weekly_content_plan(
             brief=default_weekly_brief(),
             brand=default_brand_profile(),
         )

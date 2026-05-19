@@ -23,9 +23,9 @@ from app.workflows.weekly import run_weekly_content_plan
 
 
 @pytest.fixture
-def sample_workflow_run() -> WorkflowRun:
+async def sample_workflow_run() -> WorkflowRun:
     """Produce a real WorkflowRun using MockLLM."""
-    return run_weekly_content_plan(
+    return await run_weekly_content_plan(
         brief=default_weekly_brief(),
         brand=default_brand_profile(),
     )
@@ -281,8 +281,8 @@ class TestDefaults:
         assert brief.themes
         assert len(brief.themes) >= 1
 
-    def test_defaults_produce_valid_run(self) -> None:
-        run = run_weekly_content_plan(
+    async def test_defaults_produce_valid_run(self) -> None:
+        run = await run_weekly_content_plan(
             brief=default_weekly_brief(),
             brand=default_brand_profile(),
         )

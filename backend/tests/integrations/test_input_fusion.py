@@ -277,7 +277,7 @@ class TestInputFusion:
 
 
 class TestBriefFeedsWorkflow:
-    def test_generated_brief_runs_workflow(self, sample_tweets, sample_posts, sample_brand):
+    async def test_generated_brief_runs_workflow(self, sample_tweets, sample_posts, sample_brand):
         tw = analyze_tweets(sample_tweets)
         ss = analyze_posts(sample_posts)
         brief = fuse_to_weekly_brief(
@@ -286,7 +286,7 @@ class TestBriefFeedsWorkflow:
             brand_profile=sample_brand,
         )
 
-        run = run_weekly_content_plan(brief=brief, brand=sample_brand)
+        run = await run_weekly_content_plan(brief=brief, brand=sample_brand)
         assert run.status.value == "completed"
         assert len(run.pillars) > 0
         assert len(run.assets) > 0
