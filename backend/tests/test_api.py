@@ -2,6 +2,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.schemas.brand import BrandProfile
 from app.schemas.brief import WeeklyBrief
 
@@ -13,6 +14,40 @@ def test_healthcheck(client: TestClient) -> None:
     data = response.json()
     assert data["status"] == "ok"
     assert data["app"] == "social-ai-os"
+
+
+def test_ready_without_db(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """GET /ready returns 200 when DATABASE_URL is not set."""
+    monkeypatch.setattr(settings, "DATABASE_URL", None)
+    response = client.get("/ready")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ready"
+    assert data["db"] == "not_configured"
+
+
+def test_ready_with_bad_db(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """GET /ready returns 503 when DB is unreachable."""
+    monkeypatch.setattr(settings, "DATABASE_URL", "postgresql://bad:5432/nonexistent")
+    response = client.get("/ready")
+    assert response.status_code == 503
+    data = response.json()
+    assert data["status"] == "not_ready"
+
+
+def test_cors_headers_present(client: TestClient) -> None:
+    """Responses include CORS headers when Origin is sent."""
+    response = client.get("/health", headers={"Origin": "https://example.com"})
+    assert "access-control-allow-origin" in response.headers
+
+
+def test_app_version_not_hardcoded(client: TestClient) -> None:
+    """App version is read from package metadata, not hardcoded 0.1.0."""
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    data = response.json()
+    version = data["info"]["version"]
+    assert version != "0.1.0"
 
 
 def test_weekly_content_plan(
@@ -77,7 +112,10 @@ def test_weekly_content_plan_with_social_sources(
         brief.platform_focus.append("x")
         return brief
 
-    monkeypatch.setattr(weekly_mod, "enrich_brief_from_social", mock_enrich)
+    async def mock_enrich_async(brief, brand, social_sources):
+        return mock_enrich(brief, brand, social_sources)
+
+    monkeypatch.setattr(weekly_mod, "enrich_brief_from_social", mock_enrich_async)
 
     payload = {
         "brief": sample_brief_schema.model_dump(mode="json"),
@@ -106,7 +144,7 @@ def test_weekly_content_plan_social_sources_fails_gracefully(
     """POST with social_sources that fails still returns completed workflow."""
     from app.workflows import weekly as weekly_mod
 
-    def mock_enrich_fail(brief, brand, social_sources):
+    async def mock_enrich_fail(brief, brand, social_sources):
         raise RuntimeError("Twitter API down")
 
     monkeypatch.setattr(weekly_mod, "enrich_brief_from_social", mock_enrich_fail)
