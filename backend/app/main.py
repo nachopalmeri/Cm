@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 
 def _get_app_version() -> str:
-    """Read version from package metadata, falling back to settings."""
     try:
         return pkg_version("social-ai-os")
     except Exception:
@@ -42,7 +41,6 @@ app = FastAPI(
     version=_get_app_version(),
 )
 
-# CORS middleware
 _allowed_origins = [
     origin.strip()
     for origin in settings.ALLOWED_ORIGINS.split(",")
@@ -66,22 +64,29 @@ def _get_db_session():
     return SessionLocal()
 
 
+def _get_llm():
+    """Build LLM provider from settings (lazy import to avoid circular imports)."""
+    from app.agents.llm import build_llm_provider
+    return build_llm_provider(
+        provider=settings.LLM_PROVIDER,
+        openai_api_key=settings.OPENAI_API_KEY,
+        anthropic_api_key=settings.ANTHROPIC_API_KEY,
+        model=settings.OPENAI_MODEL if settings.LLM_PROVIDER == "openai" else settings.ANTHROPIC_MODEL,
+    )
+
+
 @app.get("/health", tags=["health"])
 def healthcheck() -> dict:
-    """Liveness probe."""
     return {"status": "ok", "app": settings.APP_NAME}
 
 
 @app.get("/ready", tags=["health"])
 def ready_check() -> dict:
-    """Readiness probe - verifies DB connectivity when DATABASE_URL is set."""
     db_url = settings.DATABASE_URL
     if not db_url:
         return {"status": "ready", "db": "not_configured"}
-
     try:
         from sqlalchemy import create_engine
-
         engine = create_engine(db_url)
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -89,20 +94,15 @@ def ready_check() -> dict:
     except Exception as exc:
         logger.error("Readiness check failed: %s", exc)
         from fastapi.responses import JSONResponse
-
-        return JSONResponse(
-            status_code=503,
-            content={"status": "not_ready", "db": str(exc)},
-        )
+        return JSONResponse(status_code=503, content={"status": "not_ready", "db": str(exc)})
 
 
 @app.post("/workflows/weekly-content-plan", response_model=WeeklyContentPlanResponse, tags=["workflows"])
 async def weekly_content_plan(request: WeeklyContentPlanRequest) -> WeeklyContentPlanResponse:
-    """Run the weekly content planning workflow asynchronously."""
+    """Run the weekly content planning workflow."""
     brief = request.brief
     if request.social_sources and (
-        request.social_sources.twitter_handle
-        or request.social_sources.substack_url
+        request.social_sources.twitter_handle or request.social_sources.substack_url
     ):
         try:
             brief = await enrich_brief_from_social(
@@ -113,10 +113,7 @@ async def weekly_content_plan(request: WeeklyContentPlanRequest) -> WeeklyConten
         except Exception:
             logger.exception("Social enrichment failed, continuing with original brief")
 
-    workflow_run = await run_weekly_content_plan(
-        brief=brief,
-        brand=request.brand_profile,
-    )
+    workflow_run = await run_weekly_content_plan(brief=brief, brand=request.brand_profile)
     return WeeklyContentPlanResponse(workflow_run=workflow_run)
 
 
@@ -128,10 +125,9 @@ async def weekly_content_plan(request: WeeklyContentPlanRequest) -> WeeklyConten
 async def ghostwriter_ingest(request: IngestRequest) -> IngestResponse:
     """Ingest raw content samples into BrandMemory to build the voice profile."""
     from app.ghostwriter.service import GhostwriterService
-
     session = _get_db_session()
     try:
-        svc = GhostwriterService(session)
+        svc = GhostwriterService(session, llm=_get_llm())
         return await svc.ingest(
             texts=request.texts,
             source=request.source,
@@ -147,10 +143,9 @@ async def ghostwriter_profile(
 ) -> VoiceProfileResponse:
     """Return the aggregated voice profile built from stored BrandMemory."""
     from app.ghostwriter.service import GhostwriterService
-
     session = _get_db_session()
     try:
-        svc = GhostwriterService(session)
+        svc = GhostwriterService(session, llm=_get_llm())
         return await svc.get_profile(brand_profile_id=brand_id)
     finally:
         session.close()
@@ -160,10 +155,9 @@ async def ghostwriter_profile(
 async def ghostwriter_generate(request: GenerateRequest) -> GenerateResponse:
     """Generate content drafts that match the user voice profile."""
     from app.ghostwriter.service import GhostwriterService
-
     session = _get_db_session()
     try:
-        svc = GhostwriterService(session)
+        svc = GhostwriterService(session, llm=_get_llm())
         return await svc.generate(
             topic=request.topic,
             platform=request.platform,
@@ -178,10 +172,9 @@ async def ghostwriter_generate(request: GenerateRequest) -> GenerateResponse:
 async def ghostwriter_feedback(request: FeedbackRequest) -> FeedbackResponse:
     """Store approval/rejection feedback and update BrandMemory with diff analysis."""
     from app.ghostwriter.service import GhostwriterService
-
     session = _get_db_session()
     try:
-        svc = GhostwriterService(session)
+        svc = GhostwriterService(session, llm=_get_llm())
         return await svc.feedback(
             draft_id=request.draft_id,
             draft_text=request.draft_text,
@@ -191,3 +184,4 @@ async def ghostwriter_feedback(request: FeedbackRequest) -> FeedbackResponse:
         )
     finally:
         session.close()
+

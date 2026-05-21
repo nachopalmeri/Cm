@@ -98,18 +98,26 @@ class GhostwriterService:
         count: int,
         brand_profile: BrandProfileSchema,
     ) -> GenerateResponse:
-        """Generate N content drafts using the brand voice profile."""
+        """Generate N content drafts using the brand voice profile.
+
+        Enriches the prompt with:
+        - Approved voice samples from BrandMemory
+        - Feedback analysis (replaced_phrases, new_topics) from past corrections
+        """
         brand_id = await self._get_or_create_brand_id(brand_profile)
 
         memory_results = await self._memory.search_all_memory(
             brand_profile_id=brand_id,
             query=topic,
-            limit=5,
+            limit=10,
         )
+
+        # Collect approved voice samples
         voice_samples: list[str] = []
         for item in memory_results.get("brand_memory", []):
             if hasattr(item, "content") and item.content:
-                voice_samples.append(item.content)
+                if hasattr(item, "category") and item.category in ("voice_sample", "feedback_approved"):
+                    voice_samples.append(item.content)
 
         examples_text = (
             "\n\n".join(f"- {s}" for s in voice_samples[:3])
@@ -117,9 +125,15 @@ class GhostwriterService:
             else "(No examples yet - generating from voice profile.)"
         )
 
+        # Build feedback constraints from accumulated feedback_analysis entries
+        feedback_entries = self._memory.brand.get_entries_by_profile(brand_id)
+        feedback_constraints = _build_feedback_constraints(
+            [e for e in feedback_entries if e.category == "feedback_analysis"]
+        )
+
         try:
             prompt = _registry.get_prompt("ghostwriter")
-            system = prompt.system_prompt.format(
+            system_base = prompt.system_prompt.format(
                 name=brand_profile.name,
                 voice=brand_profile.voice,
                 tone=brand_profile.tone,
@@ -129,6 +143,8 @@ class GhostwriterService:
                 count=str(count),
                 examples=examples_text,
             )
+            # Inject feedback constraints into system prompt
+            system = system_base + feedback_constraints
             user = prompt.user_template.format(
                 name=brand_profile.name,
                 voice=brand_profile.voice,
@@ -145,7 +161,7 @@ class GhostwriterService:
                 f"Sos el ghostwriter de {brand_profile.name}. "
                 f"Voz: {brand_profile.voice}. Tono: {brand_profile.tone}. "
                 f"Plataforma: {platform}."
-            )
+            ) + feedback_constraints
             user = (
                 f"Escribi {count} versiones sobre '{topic}' para {platform}. "
                 "Separa cada una con ---DRAFT---."
@@ -356,3 +372,48 @@ _STOP_WORDS: set[str] = {
     "not", "no", "so", "if", "as", "up", "out", "about", "into", "than",
     "then", "just", "more", "also", "when", "what", "how", "all", "can",
 }
+
+
+
+def _build_feedback_constraints(feedback_entries: list) -> str:
+    """Build a constraint block for the system prompt from feedback_analysis entries.
+
+    Parses stored analysis summaries and extracts:
+    - Phrases the user consistently replaces (avoid these)
+    - New topics the user added in corrections (include these when relevant)
+    """
+    if not feedback_entries:
+        return ""
+
+    avoid_phrases: list[str] = []
+    preferred_topics: list[str] = []
+
+    for entry in feedback_entries[-10:]:  # Use last 10 analyses
+        content = entry.content or ""
+        # Parse replaced=[ ... ]
+        replaced_match = re.search(r"replaced=\[([^\]]*)\]", content)
+        if replaced_match:
+            raw = replaced_match.group(1)
+            phrases = [p.strip().strip("'\"") for p in raw.split(",") if p.strip()]
+            avoid_phrases.extend(phrases)
+        # Parse new_topics=[ ... ]
+        topics_match = re.search(r"new_topics=\[([^\]]*)\]", content)
+        if topics_match:
+            raw = topics_match.group(1)
+            topics = [t.strip().strip("'\"") for t in raw.split(",") if t.strip()]
+            preferred_topics.extend(topics)
+
+    # Deduplicate
+    avoid_phrases = list(dict.fromkeys(avoid_phrases))[:8]
+    preferred_topics = list(dict.fromkeys(preferred_topics))[:5]
+
+    if not avoid_phrases and not preferred_topics:
+        return ""
+
+    lines = ["\n\nAprendizaje de feedback anterior:"]
+    if avoid_phrases:
+        lines.append(f"- EVITAR estas palabras/frases (el usuario las reemplaza): {', '.join(avoid_phrases)}")
+    if preferred_topics:
+        lines.append(f"- INCLUIR estos temas cuando sea relevante (el usuario los agrega): {', '.join(preferred_topics)}")
+
+    return "\n".join(lines)

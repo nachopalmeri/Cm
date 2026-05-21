@@ -208,3 +208,117 @@ class MockLLM:
             completion_tokens=len(content) // 4,
             latency_ms=elapsed_ms,
         )
+
+
+# ---------------------------------------------------------------------------
+# OpenAI provider
+# ---------------------------------------------------------------------------
+
+class OpenAIProvider:
+    """OpenAI chat completions provider (requires openai package)."""
+
+    def __init__(self, model: str = "gpt-4o-mini", api_key: str | None = None) -> None:
+        try:
+            import openai as _openai
+            self._openai = _openai
+        except ImportError as e:
+            raise ImportError("openai package not installed. Run: pip install openai") from e
+        self.model_name = model
+        self._api_key = api_key
+
+    async def generate(self, system: str, user: str, **kwargs: Any) -> LLMResponse:
+        import time
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=self._api_key)
+        start = time.monotonic()
+        response = await client.chat.completions.create(
+            model=self.model_name,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=kwargs.get("temperature", 0.8),
+            max_tokens=kwargs.get("max_tokens", 1024),
+        )
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        content = response.choices[0].message.content or ""
+        usage = response.usage
+        return LLMResponse(
+            content=content,
+            model_name=self.model_name,
+            prompt_tokens=usage.prompt_tokens if usage else 0,
+            completion_tokens=usage.completion_tokens if usage else 0,
+            latency_ms=elapsed_ms,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Anthropic provider
+# ---------------------------------------------------------------------------
+
+class AnthropicProvider:
+    """Anthropic Messages API provider (requires anthropic package)."""
+
+    def __init__(self, model: str = "claude-3-5-haiku-20241022", api_key: str | None = None) -> None:
+        try:
+            import anthropic as _anthropic
+            self._anthropic = _anthropic
+        except ImportError as e:
+            raise ImportError("anthropic package not installed. Run: pip install anthropic") from e
+        self.model_name = model
+        self._api_key = api_key
+
+    async def generate(self, system: str, user: str, **kwargs: Any) -> LLMResponse:
+        import time
+        from anthropic import AsyncAnthropic
+
+        client = AsyncAnthropic(api_key=self._api_key)
+        start = time.monotonic()
+        response = await client.messages.create(
+            model=self.model_name,
+            max_tokens=kwargs.get("max_tokens", 1024),
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        content = response.content[0].text if response.content else ""
+        return LLMResponse(
+            content=content,
+            model_name=self.model_name,
+            prompt_tokens=response.usage.input_tokens,
+            completion_tokens=response.usage.output_tokens,
+            latency_ms=elapsed_ms,
+        )
+
+
+# ---------------------------------------------------------------------------
+# LLM factory
+# ---------------------------------------------------------------------------
+
+def build_llm_provider(
+    provider: str = "mock",
+    openai_api_key: str | None = None,
+    anthropic_api_key: str | None = None,
+    model: str | None = None,
+) -> "LLMProvider":
+    """Build an LLMProvider from settings.
+
+    provider values: "mock", "openai", "anthropic"
+    Falls back to MockLLM if keys are missing.
+    """
+    if provider == "openai":
+        if not openai_api_key:
+            import logging
+            logging.getLogger(__name__).warning("OPENAI_API_KEY not set, falling back to MockLLM")
+            return MockLLM()
+        return OpenAIProvider(model=model or "gpt-4o-mini", api_key=openai_api_key)
+
+    if provider == "anthropic":
+        if not anthropic_api_key:
+            import logging
+            logging.getLogger(__name__).warning("ANTHROPIC_API_KEY not set, falling back to MockLLM")
+            return MockLLM()
+        return AnthropicProvider(model=model or "claude-3-5-haiku-20241022", api_key=anthropic_api_key)
+
+    return MockLLM()

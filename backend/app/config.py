@@ -1,4 +1,4 @@
-"""Application configuration."""
+﻿"""Application configuration."""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     PEXELS_API_KEY: str | None = None
     X_API_BEARER_TOKEN: str | None = None
     ALLOWED_ORIGINS: str = "*"
+
+    # LLM provider settings
+    LLM_PROVIDER: str = "mock"
+    OPENAI_API_KEY: str | None = None
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    ANTHROPIC_API_KEY: str | None = None
+    ANTHROPIC_MODEL: str = "claude-3-5-haiku-20241022"
 
 
 settings = Settings()

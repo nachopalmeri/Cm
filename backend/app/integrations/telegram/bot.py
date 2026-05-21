@@ -1,4 +1,4 @@
-"""Telegram bot entrypoint — v0.4.0 approval UX with TikTok Pack review."""
+﻿"""Telegram bot entrypoint â€” v0.4.0 approval UX with TikTok Pack review."""
 from __future__ import annotations
 
 import logging
@@ -32,7 +32,7 @@ _VOICEOVER_PREVIEW_LEN = 150
 def format_workflow_summary(workflow_run: WorkflowRun) -> str:
     """Rich summary of a WorkflowRun for Telegram display."""
     lines = [
-        f"📋 Workflow: {workflow_run.workflow_type}",
+        f"ðŸ“‹ Workflow: {workflow_run.workflow_type}",
         f"Run: {workflow_run.run_id}",
         f"Status: {workflow_run.status.value}",
         f"Brand: {workflow_run.brand_handle}",
@@ -40,27 +40,27 @@ def format_workflow_summary(workflow_run: WorkflowRun) -> str:
     ]
 
     if workflow_run.pillars:
-        lines.append(f"🏗 Pillars ({len(workflow_run.pillars)}):")
+        lines.append(f"ðŸ— Pillars ({len(workflow_run.pillars)}):")
         for p in workflow_run.pillars:
-            lines.append(f"  • {p.name}: {p.description}")
+            lines.append(f"  â€¢ {p.name}: {p.description}")
 
     if workflow_run.assets:
         lines.append("")
-        lines.append(f"📄 Assets ({len(workflow_run.assets)}):")
+        lines.append(f"ðŸ“„ Assets ({len(workflow_run.assets)}):")
         for idx, a in enumerate(workflow_run.assets):
-            lines.append(f"  {idx + 1}. [{a.platform.value}] {a.format} — {a.status}")
+            lines.append(f"  {idx + 1}. [{a.platform.value}] {a.format} â€” {a.status}")
 
     if workflow_run.tiktok_packs:
         lines.append("")
-        lines.append(f"🎵 TikTok Packs ({len(workflow_run.tiktok_packs)}):")
+        lines.append(f"ðŸŽµ TikTok Packs ({len(workflow_run.tiktok_packs)}):")
         for idx, tp in enumerate(workflow_run.tiktok_packs):
             lines.append(f"  {idx + 1}. {tp.title}")
 
     lines.append("")
-    lines.append(f"🔍 Traces: {len(workflow_run.traces)}")
+    lines.append(f"ðŸ” Traces: {len(workflow_run.traces)}")
 
     if workflow_run.error_message:
-        lines.append(f"❌ Error: {workflow_run.error_message}")
+        lines.append(f"âŒ Error: {workflow_run.error_message}")
 
     return "\n".join(lines)
 
@@ -69,10 +69,10 @@ def format_asset_card(asset: ContentAsset, index: int) -> str:
     """Format a single asset for Telegram display with preview."""
     preview = asset.body[:_ASSET_BODY_PREVIEW_LEN]
     if len(asset.body) > _ASSET_BODY_PREVIEW_LEN:
-        preview += "…"
+        preview += "â€¦"
 
     return (
-        f"📝 Asset #{index + 1}\n"
+        f"ðŸ“ Asset #{index + 1}\n"
         f"Platform: {asset.platform.value}\n"
         f"Format: {asset.format}\n"
         f"Status: {asset.status}\n"
@@ -83,7 +83,7 @@ def format_asset_card(asset: ContentAsset, index: int) -> str:
 def format_tiktok_pack_summary(pack: TikTokPack, index: int) -> str:
     """Compact TikTok Pack card for the listing after /weekly."""
     return (
-        f"🎵 TikTok Pack #{index + 1}\n"
+        f"ðŸŽµ TikTok Pack #{index + 1}\n"
         f"Title: {pack.title}\n"
         f"Hook: {pack.hook}\n"
         f"CTA: {pack.cta}\n"
@@ -95,13 +95,13 @@ def format_tiktok_pack_detail(pack: TikTokPack) -> str:
     """Full TikTok Pack detail shown when user taps View."""
     voiceover = pack.voiceover_script[:_VOICEOVER_PREVIEW_LEN]
     if len(pack.voiceover_script) > _VOICEOVER_PREVIEW_LEN:
-        voiceover += "…"
+        voiceover += "â€¦"
 
-    captions = "\n".join(f"  • {c}" for c in pack.on_screen_captions[:6])
-    checklist = "\n".join(f"  • {c}" for c in pack.recording_checklist[:6])
+    captions = "\n".join(f"  â€¢ {c}" for c in pack.on_screen_captions[:6])
+    checklist = "\n".join(f"  â€¢ {c}" for c in pack.recording_checklist[:6])
 
     return (
-        f"🎬 {pack.title}\n\n"
+        f"ðŸŽ¬ {pack.title}\n\n"
         f"Hook: {pack.hook}\n"
         f"Promise: {pack.promise}\n\n"
         f"Voiceover:\n{voiceover}\n\n"
@@ -117,33 +117,33 @@ def format_error_message(error_type: str, detail: str = "") -> str:
     """User-facing error messages by category."""
     messages = {
         "no_token": (
-            "⚠️ TELEGRAM_BOT_TOKEN no configurado.\n"
-            "Configurá la variable de entorno antes de iniciar el bot."
+            "âš ï¸ TELEGRAM_BOT_TOKEN no configurado.\n"
+            "ConfigurÃ¡ la variable de entorno antes de iniciar el bot."
         ),
         "workflow_exception": (
-            "❌ El workflow semanal falló.\n"
-            f"Detalle: {detail}" if detail else "❌ El workflow semanal falló. Revisá logs del backend."
+            "âŒ El workflow semanal fallÃ³.\n"
+            f"Detalle: {detail}" if detail else "âŒ El workflow semanal fallÃ³. RevisÃ¡ logs del backend."
         ),
         "invalid_payload": (
-            "⚠️ Payload inválido para el workflow.\n"
-            f"Detalle: {detail}" if detail else "⚠️ Payload inválido para el workflow."
+            "âš ï¸ Payload invÃ¡lido para el workflow.\n"
+            f"Detalle: {detail}" if detail else "âš ï¸ Payload invÃ¡lido para el workflow."
         ),
-        "asset_not_found": "⚠️ Asset no encontrado en el último run.",
-        "pack_not_found": "⚠️ TikTok Pack no encontrado en el último run.",
-        "no_run_available": "⚠️ No hay un workflow run disponible. Ejecutá /weekly primero.",
+        "asset_not_found": "âš ï¸ Asset no encontrado en el Ãºltimo run.",
+        "pack_not_found": "âš ï¸ TikTok Pack no encontrado en el Ãºltimo run.",
+        "no_run_available": "âš ï¸ No hay un workflow run disponible. EjecutÃ¡ /weekly primero.",
     }
-    return messages.get(error_type, f"⚠️ Error desconocido: {error_type}")
+    return messages.get(error_type, f"âš ï¸ Error desconocido: {error_type}")
 
 
 def build_asset_keyboard(asset_id: str) -> InlineKeyboardMarkup:
     """Inline keyboard with approve/reject buttons for an asset."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✅ Approve", callback_data=f"approve:{asset_id}"),
-            InlineKeyboardButton("❌ Reject", callback_data=f"reject:{asset_id}"),
+            InlineKeyboardButton("âœ… Approve", callback_data=f"approve:{asset_id}"),
+            InlineKeyboardButton("âŒ Reject", callback_data=f"reject:{asset_id}"),
         ],
         [
-            InlineKeyboardButton("🔄 Regenerate", callback_data=f"regenerate:{asset_id}"),
+            InlineKeyboardButton("ðŸ”„ Regenerate", callback_data=f"regenerate:{asset_id}"),
         ],
     ])
 
@@ -152,7 +152,7 @@ def build_tiktok_pack_keyboard(pack_index: int) -> InlineKeyboardMarkup:
     """Inline keyboard with View button for a TikTok Pack."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("👁 View Pack", callback_data=f"view_pack:{pack_index}"),
+            InlineKeyboardButton("ðŸ‘ View Pack", callback_data=f"view_pack:{pack_index}"),
         ],
     ])
 
@@ -166,20 +166,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_message is None:
         return
     await update.effective_message.reply_text(
-        "🤖 Social AI OS bot activo.\n\n"
+        "ðŸ¤– Social AI OS bot activo.\n\n"
         "Comandos:\n"
-        "/health — verificar estado\n"
-        "/weekly — ejecutar workflow semanal con MockLLM\n\n"
-        "Este bot es interfaz de aprobación. No publica contenido en redes."
+        "/health â€” verificar estado\n"
+        "/weekly â€” ejecutar workflow semanal con MockLLM\n\n"
+        "Este bot es interfaz de aprobaciÃ³n. No publica contenido en redes."
     )
 
 
 async def health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_message is None:
         return
-    token_status = "✅ configurado" if settings.TELEGRAM_BOT_TOKEN else "❌ no configurado"
+    token_status = "âœ… configurado" if settings.TELEGRAM_BOT_TOKEN else "âŒ no configurado"
     await update.effective_message.reply_text(
-        f"ok — {settings.APP_NAME}\nToken: {token_status}"
+        f"ok â€” {settings.APP_NAME}\nToken: {token_status}"
     )
 
 
@@ -187,7 +187,7 @@ async def weekly(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_message is None:
         return
 
-    await update.effective_message.reply_text("⏳ Ejecutando workflow semanal con MockLLM…")
+    await update.effective_message.reply_text("â³ Ejecutando workflow semanal con MockLLMâ€¦")
 
     try:
         workflow_run = await run_weekly_content_plan(
@@ -251,18 +251,18 @@ async def asset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if action == "approve":
             asset.status = "approved"
             await query.edit_message_text(
-                f"✅ Asset aprobado.\n\n{format_asset_card(asset, workflow_run.assets.index(asset))}",
+                f"âœ… Asset aprobado.\n\n{format_asset_card(asset, workflow_run.assets.index(asset))}",
                 reply_markup=None,
             )
         elif action == "reject":
             asset.status = "rejected"
             await query.edit_message_text(
-                f"❌ Asset rechazado.\n\n{format_asset_card(asset, workflow_run.assets.index(asset))}",
+                f"âŒ Asset rechazado.\n\n{format_asset_card(asset, workflow_run.assets.index(asset))}",
                 reply_markup=None,
             )
         elif action == "regenerate":
             await query.edit_message_text(
-                "🔄 Regenerate no implementado aún. Re-ejecutá /weekly para generar nuevos assets.",
+                "ðŸ”„ Regenerate no implementado aÃºn. Re-ejecutÃ¡ /weekly para generar nuevos assets.",
                 reply_markup=None,
             )
 
@@ -297,11 +297,15 @@ def build_application():
     if not settings.TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is required to run the Telegram bot")
 
+    from app.integrations.telegram.ghostwriter_handler import register_ghostwriter_handlers
+
     application = ApplicationBuilder().token(settings.TELEGRAM_BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("health", health))
     application.add_handler(CommandHandler("weekly", weekly))
-    application.add_handler(CallbackQueryHandler(asset_callback))
+    application.add_handler(CallbackQueryHandler(asset_callback, pattern=r"^(?!ghost_)"))
+    # Register ghostwriter handlers (ghost, ingest, approve/reject, correction)
+    register_ghostwriter_handlers(application)
     return application
 
 
@@ -313,3 +317,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
