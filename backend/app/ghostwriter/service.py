@@ -1,4 +1,4 @@
-﻿"""GhostwriterService - AI ghostwriter with persistent brand memory."""
+"""GhostwriterService - AI ghostwriter with persistent brand memory."""
 from __future__ import annotations
 
 import re
@@ -11,6 +11,7 @@ from app.agents.llm import LLMProvider, MockLLM
 from app.memory.memory_service import MemoryService
 from app.models.brand import BrandProfile as BrandProfileModel
 from app.prompts.registry import PromptRegistry
+from app.ghostwriter.platform_rules import render_platform_rules
 from app.schemas.api import (
     ContentDraft,
     DraftAnalysis,
@@ -131,6 +132,8 @@ class GhostwriterService:
             [e for e in feedback_entries if e.category == "feedback_analysis"]
         )
 
+        platform_rules_text = render_platform_rules(platform)
+
         try:
             prompt = _registry.get_prompt("ghostwriter")
             system_base = prompt.system_prompt.format(
@@ -139,6 +142,7 @@ class GhostwriterService:
                 tone=brand_profile.tone,
                 style=brand_profile.style,
                 platform=platform,
+                platform_rules=platform_rules_text,
                 topic=topic,
                 count=str(count),
                 examples=examples_text,
@@ -151,6 +155,7 @@ class GhostwriterService:
                 tone=brand_profile.tone,
                 style=brand_profile.style,
                 platform=platform,
+                platform_rules=platform_rules_text,
                 topic=topic,
                 count=str(count),
                 examples=examples_text,
@@ -161,6 +166,7 @@ class GhostwriterService:
                 f"Sos el ghostwriter de {brand_profile.name}. "
                 f"Voz: {brand_profile.voice}. Tono: {brand_profile.tone}. "
                 f"Plataforma: {platform}."
+                f"\n\n{platform_rules_text}"
             ) + feedback_constraints
             user = (
                 f"Escribi {count} versiones sobre '{topic}' para {platform}. "
