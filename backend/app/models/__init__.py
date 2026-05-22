@@ -4,6 +4,7 @@ from app.models.content import ContentIdea, ContentAsset, ContentPerformance
 from app.models.audience import AudienceInsight
 from app.models.context import ContextEntry
 from app.models.embedding import MemoryEmbedding
+from app.models.feedback import FeedbackEntry
 from app.models.workflow import WorkflowRun, AgentTrace
 from app.models.enums import (
     ContentStatus,
@@ -24,6 +25,7 @@ __all__ = [
     "AudienceInsight",
     "ContextEntry",
     "MemoryEmbedding",
+    "FeedbackEntry",
     "WorkflowRun",
     "AgentTrace",
     "ContentStatus",

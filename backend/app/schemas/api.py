@@ -48,6 +48,16 @@ class IngestResponse(BaseModel):
     voice_updated: bool = Field(description="Whether the voice profile was updated.")
 
 
+class ObsidianIngestRequest(BaseModel):
+    """Request body for POST /ghostwriter/ingest/obsidian."""
+
+    vault_path: str = Field(description="Absolute path to the Obsidian vault directory.")
+    max_notes: int = Field(default=50, ge=1, le=500, description="Maximum notes to scan.")
+    min_words: int = Field(default=20, ge=10, description="Minimum words for a note to be included.")
+    folders: list[str] | None = Field(default=None, description="Only scan specific folders (e.g. ['Daily', 'Projects']).")
+    brand_profile: BrandProfile
+
+
 class VoiceProfileResponse(BaseModel):
     """Response body for GET /ghostwriter/profile."""
 

@@ -20,7 +20,8 @@ from app.models import (  # noqa: E402
     BrandProfile, BrandMemoryEntry,
     ContentIdea, ContentAsset, ContentPerformance,
     AudienceInsight, ContextEntry,
-    MemoryEmbedding, WorkflowRun, AgentTrace,
+    MemoryEmbedding, FeedbackEntry,
+    WorkflowRun, AgentTrace,
 )
 
 target_metadata = Base.metadata

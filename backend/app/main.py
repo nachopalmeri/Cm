@@ -5,13 +5,15 @@ import logging
 import uuid
 from importlib.metadata import version as pkg_version
 
-from fastapi import FastAPI, Query
+from fastapi import Depends, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.base import Base
+from app.db.engine import create_engine
+from app.db.session import get_session
 from app.schemas.api import (
     FeedbackRequest,
     FeedbackResponse,
@@ -19,6 +21,7 @@ from app.schemas.api import (
     GenerateResponse,
     IngestRequest,
     IngestResponse,
+    ObsidianIngestRequest,
     VoiceProfileResponse,
     WeeklyContentPlanRequest,
     WeeklyContentPlanResponse,
@@ -55,15 +58,6 @@ app.add_middleware(
 )
 
 
-def _get_db_session():
-    """Create a SQLite session for local dev / tests."""
-    db_url = settings.DATABASE_URL or "sqlite:///./ghostwriter.db"
-    engine = create_engine(db_url, connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    return SessionLocal()
-
-
 def _get_llm():
     """Build LLM provider from settings (lazy import to avoid circular imports)."""
     from app.agents.llm import build_llm_provider
@@ -73,6 +67,13 @@ def _get_llm():
         anthropic_api_key=settings.ANTHROPIC_API_KEY,
         model=settings.OPENAI_MODEL if settings.LLM_PROVIDER == "openai" else settings.ANTHROPIC_MODEL,
     )
+
+
+@app.on_event("startup")
+def on_startup():
+    engine = create_engine()
+    Base.metadata.create_all(bind=engine)
+    engine.dispose()
 
 
 @app.get("/health", tags=["health"])
@@ -122,66 +123,86 @@ async def weekly_content_plan(request: WeeklyContentPlanRequest) -> WeeklyConten
 # ---------------------------------------------------------------------------
 
 @app.post("/ghostwriter/ingest", response_model=IngestResponse, tags=["ghostwriter"])
-async def ghostwriter_ingest(request: IngestRequest) -> IngestResponse:
+async def ghostwriter_ingest(
+    request: IngestRequest,
+    session: Session = Depends(get_session),
+) -> IngestResponse:
     """Ingest raw content samples into BrandMemory to build the voice profile."""
     from app.ghostwriter.service import GhostwriterService
-    session = _get_db_session()
-    try:
-        svc = GhostwriterService(session, llm=_get_llm())
-        return await svc.ingest(
-            texts=request.texts,
-            source=request.source,
-            brand_profile=request.brand_profile,
-        )
-    finally:
-        session.close()
+    svc = GhostwriterService(session, llm=_get_llm())
+    return await svc.ingest(
+        texts=request.texts,
+        source=request.source,
+        brand_profile=request.brand_profile,
+    )
 
 
 @app.get("/ghostwriter/profile", response_model=VoiceProfileResponse, tags=["ghostwriter"])
 async def ghostwriter_profile(
     brand_id: uuid.UUID = Query(..., description="Brand profile UUID"),
+    session: Session = Depends(get_session),
 ) -> VoiceProfileResponse:
     """Return the aggregated voice profile built from stored BrandMemory."""
     from app.ghostwriter.service import GhostwriterService
-    session = _get_db_session()
-    try:
-        svc = GhostwriterService(session, llm=_get_llm())
-        return await svc.get_profile(brand_profile_id=brand_id)
-    finally:
-        session.close()
+    svc = GhostwriterService(session, llm=_get_llm())
+    return await svc.get_profile(brand_profile_id=brand_id)
 
 
 @app.post("/ghostwriter/generate", response_model=GenerateResponse, tags=["ghostwriter"])
-async def ghostwriter_generate(request: GenerateRequest) -> GenerateResponse:
+async def ghostwriter_generate(
+    request: GenerateRequest,
+    session: Session = Depends(get_session),
+) -> GenerateResponse:
     """Generate content drafts that match the user voice profile."""
     from app.ghostwriter.service import GhostwriterService
-    session = _get_db_session()
-    try:
-        svc = GhostwriterService(session, llm=_get_llm())
-        return await svc.generate(
-            topic=request.topic,
-            platform=request.platform,
-            count=request.count,
-            brand_profile=request.brand_profile,
-        )
-    finally:
-        session.close()
+    svc = GhostwriterService(session, llm=_get_llm())
+    return await svc.generate(
+        topic=request.topic,
+        platform=request.platform,
+        count=request.count,
+        brand_profile=request.brand_profile,
+    )
+
+
+@app.post("/ghostwriter/ingest/obsidian", response_model=IngestResponse, tags=["ghostwriter"])
+async def ghostwriter_ingest_obsidian(
+    request: ObsidianIngestRequest,
+    session: Session = Depends(get_session),
+) -> IngestResponse:
+    """Scan an Obsidian vault and ingest notes as voice samples."""
+    from app.ghostwriter.service import GhostwriterService
+    from app.integrations.obsidian import ObsidianScanner
+
+    scanner = ObsidianScanner(request.vault_path)
+    if request.folders:
+        notes = scanner.scan_by_folder(request.folders, max_notes=request.max_notes)
+    else:
+        notes = scanner.scan(max_notes=request.max_notes)
+
+    if not notes:
+        return IngestResponse(ingested=0, voice_updated=False)
+
+    texts = [n["content"] for n in notes]
+    svc = GhostwriterService(session, llm=_get_llm())
+    return await svc.ingest(
+        texts=texts,
+        source="obsidian",
+        brand_profile=request.brand_profile,
+    )
 
 
 @app.post("/ghostwriter/feedback", response_model=FeedbackResponse, tags=["ghostwriter"])
-async def ghostwriter_feedback(request: FeedbackRequest) -> FeedbackResponse:
+async def ghostwriter_feedback(
+    request: FeedbackRequest,
+    session: Session = Depends(get_session),
+) -> FeedbackResponse:
     """Store approval/rejection feedback and update BrandMemory with diff analysis."""
     from app.ghostwriter.service import GhostwriterService
-    session = _get_db_session()
-    try:
-        svc = GhostwriterService(session, llm=_get_llm())
-        return await svc.feedback(
-            draft_id=request.draft_id,
-            draft_text=request.draft_text,
-            approved=request.approved,
-            correction=request.correction,
-            brand_profile_id=request.brand_profile_id,
-        )
-    finally:
-        session.close()
-
+    svc = GhostwriterService(session, llm=_get_llm())
+    return await svc.feedback(
+        draft_id=request.draft_id,
+        draft_text=request.draft_text,
+        approved=request.approved,
+        correction=request.correction,
+        brand_profile_id=request.brand_profile_id,
+    )

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+
 const config: Config = {
   darkMode: ["class"],
   content: [
@@ -9,14 +10,13 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        serif: ["Instrument Serif", "Georgia", "serif"],
-        sans: ["Inter", "system-ui", "sans-serif"],
-      },
-      colors: {
-        copper: { DEFAULT: "#E8834A", dark: "#C4622D", light: "#F2A878" },
+        display: ['"DM Serif Display"', "Georgia", "serif"],
+        sans: ['"Space Grotesk"', "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono"', "monospace"],
       },
     },
   },
   plugins: [],
 };
+
 export default config;

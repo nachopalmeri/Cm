@@ -4,12 +4,14 @@ from __future__ import annotations
 import re
 import uuid
 import logging
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.agents.llm import LLMProvider, MockLLM
 from app.memory.memory_service import MemoryService
 from app.models.brand import BrandProfile as BrandProfileModel
+from app.models.feedback import FeedbackEntry
 from app.prompts.registry import PromptRegistry
 from app.ghostwriter.platform_rules import render_platform_rules
 from app.schemas.api import (
@@ -113,7 +115,6 @@ class GhostwriterService:
             limit=10,
         )
 
-        # Collect approved voice samples
         voice_samples: list[str] = []
         for item in memory_results.get("brand_memory", []):
             if hasattr(item, "content") and item.content:
@@ -126,11 +127,17 @@ class GhostwriterService:
             else "(No examples yet - generating from voice profile.)"
         )
 
-        # Build feedback constraints from accumulated feedback_analysis entries
-        feedback_entries = self._memory.brand.get_entries_by_profile(brand_id)
-        feedback_constraints = _build_feedback_constraints(
-            [e for e in feedback_entries if e.category == "feedback_analysis"]
+        feedback_entries = (
+            self._session.query(FeedbackEntry)
+            .filter(
+                FeedbackEntry.brand_profile_id == brand_id,
+                FeedbackEntry.approved == False,
+            )
+            .order_by(FeedbackEntry.created_at.desc())
+            .limit(20)
+            .all()
         )
+        feedback_constraints = _build_feedback_constraints_from_db(feedback_entries)
 
         platform_rules_text = render_platform_rules(platform)
 
@@ -147,7 +154,6 @@ class GhostwriterService:
                 count=str(count),
                 examples=examples_text,
             )
-            # Inject feedback constraints into system prompt
             system = system_base + feedback_constraints
             user = prompt.user_template.format(
                 name=brand_profile.name,
@@ -190,21 +196,28 @@ class GhostwriterService:
         correction: str | None,
         brand_profile_id: uuid.UUID,
     ) -> FeedbackResponse:
-        """Store feedback and run structural analysis to enrich BrandMemory."""
+        """Store feedback in dedicated FeedbackEntry table + update BrandMemory."""
         analysis = _analyse_feedback(
             draft_text=draft_text,
             correction=correction,
         )
 
+        entry = FeedbackEntry(
+            brand_profile_id=brand_profile_id,
+            draft_id=draft_id,
+            draft_text=draft_text,
+            approved=approved,
+            correction=correction or draft_text,
+            replaced_phrases=", ".join(analysis.replaced_phrases) if analysis.replaced_phrases else None,
+            new_topics=", ".join(analysis.new_topics_in_correction) if analysis.new_topics_in_correction else None,
+            structural_diff=analysis.structural_diff,
+            word_count_draft=analysis.word_count_draft,
+            word_count_correction=analysis.word_count_correction,
+        )
+        self._session.add(entry)
+
         category = "feedback_approved" if approved else "feedback_rejected"
         content = correction if correction else draft_text
-
-        analysis_summary = (
-            f"draft_id={draft_id} | approved={approved} | "
-            f"replaced={analysis.replaced_phrases} | "
-            f"new_topics={analysis.new_topics_in_correction} | "
-            f"struct_diff={analysis.structural_diff}"
-        )
 
         try:
             await self._memory.store_brand_memory(
@@ -213,16 +226,12 @@ class GhostwriterService:
                 content=content,
                 source="ghostwriter_feedback",
             )
-            await self._memory.store_brand_memory(
-                brand_profile_id=brand_profile_id,
-                category="feedback_analysis",
-                content=analysis_summary,
-                source="ghostwriter_feedback",
-            )
+            self._session.commit()
             stored = True
             memory_updated = True
         except Exception:
-            logger.exception("Failed to store feedback in BrandMemory")
+            self._session.rollback()
+            logger.exception("Failed to store feedback")
             stored = False
             memory_updated = False
 
@@ -380,36 +389,26 @@ _STOP_WORDS: set[str] = {
 }
 
 
+def _build_feedback_constraints_from_db(entries: list[FeedbackEntry]) -> str:
+    """Build a constraint block from FeedbackEntry rows.
 
-def _build_feedback_constraints(feedback_entries: list) -> str:
-    """Build a constraint block for the system prompt from feedback_analysis entries.
-
-    Parses stored analysis summaries and extracts:
-    - Phrases the user consistently replaces (avoid these)
-    - New topics the user added in corrections (include these when relevant)
+    Uses structured data (replaced_phrases, new_topics) instead of
+    fragile regex parsing of summary strings.
     """
-    if not feedback_entries:
+    if not entries:
         return ""
 
     avoid_phrases: list[str] = []
     preferred_topics: list[str] = []
 
-    for entry in feedback_entries[-10:]:  # Use last 10 analyses
-        content = entry.content or ""
-        # Parse replaced=[ ... ]
-        replaced_match = re.search(r"replaced=\[([^\]]*)\]", content)
-        if replaced_match:
-            raw = replaced_match.group(1)
-            phrases = [p.strip().strip("'\"") for p in raw.split(",") if p.strip()]
+    for entry in entries:
+        if entry.replaced_phrases:
+            phrases = [p.strip() for p in entry.replaced_phrases.split(",") if p.strip()]
             avoid_phrases.extend(phrases)
-        # Parse new_topics=[ ... ]
-        topics_match = re.search(r"new_topics=\[([^\]]*)\]", content)
-        if topics_match:
-            raw = topics_match.group(1)
-            topics = [t.strip().strip("'\"") for t in raw.split(",") if t.strip()]
+        if entry.new_topics:
+            topics = [t.strip() for t in entry.new_topics.split(",") if t.strip()]
             preferred_topics.extend(topics)
 
-    # Deduplicate
     avoid_phrases = list(dict.fromkeys(avoid_phrases))[:8]
     preferred_topics = list(dict.fromkeys(preferred_topics))[:5]
 
