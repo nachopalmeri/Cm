@@ -1,359 +1,368 @@
 "use client";
-import { useEffect, useRef, useState, Suspense } from "react";
-import dynamic from "next/dynamic";
+
+import { useState } from "react";
 import Navbar from "@/components/Navbar";
+import BrainBuilder from "@/components/BrainBuilder";
 
-const Hero3D = dynamic(() => import("@/components/Hero3D"), { ssr: false });
+const agents = [
+  { name: "Research", copy: "Detecta señales del mercado, tendencias y ángulos antes de escribir." },
+  { name: "Voice", copy: "Convierte contexto en contenido con tu tono, ritmo y vocabulario." },
+  { name: "Editor", copy: "Audita cada draft contra tu Brand Brain y elimina AI slop." },
+  { name: "Distributor", copy: "Adapta el mismo vibe a X, LinkedIn, newsletter y TikTok scripts." },
+];
 
-function useInView(t = 0.15) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [v, setV] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setV(true); o.unobserve(el); } }, { threshold: t });
-    o.observe(el);
-    return () => o.disconnect();
-  }, [t]);
-  return { ref, visible: v };
-}
+const phases = [
+  "Pegás tu URL, posts o audios.",
+  "Ghostwriter extrae tu ADN narrativo.",
+  "Se crea tu Brand Brain vivo.",
+  "Los agentes ejecutan contenido multicanal.",
+  "Cada corrección entrena el sistema.",
+];
 
-function Section({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const { ref, visible } = useInView();
-  return <div ref={ref} className={visible ? `animate-fade-up opacity-0 ` + className : `opacity-0 ` + className} style={{ animationDelay: delay + "ms" }}>{children}</div>;
-}
+const comparisons = [
+  ["Chatbot", "Responde cuando le pedís algo", "Agentic System", "Planifica, escribe, audita y prepara distribución"],
+  ["Prompt", "Se pierde al cerrar la sesión", "Brand Brain", "Memoria viva que compone valor con cada corrección"],
+  ["Texto", "Un output aislado", "Content OS", "Un sistema de piezas adaptadas por canal"],
+];
 
-function TypewriterDemo() {
-  const [topic, setTopic] = useState("");
-  const [draft, setDraft] = useState("");
-  const [typing, setTyping] = useState(false);
-  const [cur, setCur] = useState(true);
-  const full = "No necesitas mas horas escribiendo. Necesitas un sistema que escriba como vos, con tu tono, tu estilo, tu voz.";
-  const gen = () => {
-    if (!topic.trim() || typing) return;
-    setDraft(""); setTyping(true);
-    let i = 0;
-    const t = setInterval(() => { setDraft(full.slice(0, i + 1)); i++; if (i >= full.length) { clearInterval(t); setTyping(false); } }, 30);
-  };
-  useEffect(() => { const b = setInterval(() => setCur(c => !c), 530); return () => clearInterval(b); }, []);
-  return (
-    <div className="bg-surface/80 backdrop-blur-xl border border-white/5 rounded-3xl p-6 md:p-8 space-y-5">
-      <div className="flex items-center gap-2 text-xs text-muted font-accent uppercase tracking-widest">
-        <span className="w-2 h-2 rounded-full bg-mint animate-pulse" />
-        ghostwriter ? demo en vivo
-      </div>
-      <div className="flex gap-2">
-        <input value={topic} onChange={e => setTopic(e.target.value)} onKeyDown={e => e.key === "Enter" && gen()} placeholder="Escribe un tema..." className="flex-1 bg-transparent border border-white/10 rounded-xl px-4 py-3 text-sm text-primary placeholder:text-muted focus:border-peach/40 focus:outline-none transition-colors" />
-        <button onClick={gen} disabled={typing || !topic.trim()} className="bg-peach text-background px-5 py-3 rounded-xl text-sm font-semibold disabled:opacity-30 transition-all hover:scale-105 hover:shadow-[0_0_20px_rgba(232,168,124,0.3)]">
-          {typing ? "..." : "Generar"}
-        </button>
-      </div>
-      <div className="min-h-[80px] bg-background/50 rounded-xl p-4 font-accent text-sm text-secondary leading-relaxed">
-        {draft}
-        <span className={"inline-block w-[2px] h-4 bg-peach ml-0.5 align-middle " + (cur ? "opacity-100" : "opacity-0")} />
-      </div>
-    </div>
-  );
-}
+const brainFeatures = [
+  { title: "Contexto histórico", desc: "Tus posts, audios y URLs alimentan una memoria que no se borra entre sesiones." },
+  { title: "Reglas de voz", desc: "El sistema extrae automáticamente tu tono, vocabulario, frases prohibidas y estructuras preferidas." },
+  { title: "Correcciones persistentes", desc: "Cada edición genera una regla. El próximo draft ya la incorpora sin que vos repitas nada." },
+];
 
-function AnimatedCounter({ target, duration = 1500, suffix = "" }: { target: number; duration?: number; suffix?: string }) {
-  const [count, setCount] = useState(0);
-  const [active, setActive] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setActive(true); o.disconnect(); } }, { threshold: 0.3 });
-    o.observe(el);
-    return () => o.disconnect();
-  }, []);
-  useEffect(() => {
-    if (!active) return;
-    const start = Date.now();
-    const t = setInterval(() => {
-      const p = Math.min((Date.now() - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 4);
-      setCount(Math.floor(eased * target));
-      if (p === 1) clearInterval(t);
-    }, 16);
-    return () => clearInterval(t);
-  }, [active, target, duration]);
-  return <span ref={ref}>{count}{suffix}</span>;
-}
+const faqs = [
+  { q: "Es solo un generador de posts con IA?", a: "No. Ghostwriter es un sistema agéntico que captura tu voz, la memoriza y coordina sub-agentes para ejecutar contenido multicanal. No es un chatbot." },
+  { q: "Mis datos entrenan modelos públicos?", a: "No. Tu Brand Brain es privado y aislado. Solo vos y tu equipo de confianza acceden a tu voz entrenada." },
+  { q: "Puedo aprobar todo antes de publicar?", a: "Sí. Approval-first es el default. Nada se publica sin tu OK. Podés configurar autonomía progresiva por canal y tipo de contenido." },
+  { q: "Cuánto tarda el onboarding?", a: "Menos de 3 minutos. Pegás tu contenido existente, elegís tu vibe y el sistema genera tu Brand Brain inicial. Cada corrección lo mejora." },
+  { q: "Funciona para equipos o solo founders?", a: "Ambos. El Founder plan es para personal brands. El Brand System plan gestiona múltiples voces de marca. Enterprise incluye white-label." },
+];
 
 export default function Home() {
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-white text-slate-900">
       <Navbar />
 
-      {/* HERO */}
-      <section className="relative min-h-screen flex items-center px-6 overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <Suspense fallback={null}>
-            <Hero3D />
-          </Suspense>
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/70 to-background z-[1]" />
-        <div className="max-w-6xl mx-auto w-full relative z-10 pt-20">
-          <div className="grid lg:grid-cols-[1fr_1.1fr] gap-16 items-center">
-            <div className="space-y-10">
-              <div className="space-y-6">
-                <p className="font-accent text-[10px] uppercase tracking-[0.3em] text-peach">El ghostwriter que aprende</p>
-                <h1 className="font-display text-[clamp(56px,10vw,160px)] leading-[0.85] tracking-tight">
-                  <span className="text-primary">Escribe</span><br />
-                  <span className="text-primary/60">como vos.</span><br />
-                  <span className="text-secondary/40">A escala.</span>
-                </h1>
-                <p className="text-lg text-secondary max-w-md leading-relaxed">
-                  Ghostwriter aprende tu voz, recuerda tus correcciones y genera contenido que suena a vos. Sin prompts genericos. Sin copy de robot.
-                </p>
+      {/* Hero */}
+      <section className="relative px-6 pt-32 pb-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid items-center gap-12 lg:grid-cols-2">
+            <div>
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+                120x más rápido que redacción manual
               </div>
-              <div className="flex flex-wrap items-center gap-4">
-                <a href="#tool" className="bg-peach text-background px-8 py-4 rounded-2xl text-sm font-semibold tracking-wide hover:bg-peach/90 hover:shadow-[0_0_40px_rgba(232,168,124,0.25)] transition-all duration-300">
-                  Probar gratis
-                </a>
-                <a href="#how" className="text-secondary text-sm hover:text-primary transition-colors border border-white/10 px-6 py-4 rounded-2xl hover:border-white/20">
-                  Como funciona
-                </a>
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand-700">
+                Agentic Brand System
               </div>
-              <div className="grid grid-cols-3 gap-6 pt-4 border-t border-white/5">
-                <div>
-                  <div className="font-display text-4xl text-primary"><AnimatedCounter target={24} /></div>
-                  <p className="text-muted text-xs mt-1 font-accent uppercase tracking-widest">Entradas</p>
-                </div>
-                <div>
-                  <div className="font-display text-4xl text-primary"><AnimatedCounter target={3} /></div>
-                  <p className="text-muted text-xs mt-1 font-accent uppercase tracking-widest">Versiones</p>
-                </div>
-                <div>
-                  <div className="font-display text-4xl text-primary"><AnimatedCounter target={0} /></div>
-                  <p className="text-muted text-xs mt-1 font-accent uppercase tracking-widest">Prompts genericos</p>
-                </div>
+              <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl">
+                Tu voz. Ejecutada por agentes.
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
+                Ghostwriter no es un chatbot ni un generador de posts. Es el sistema operativo de tu marca personal: captura tu Brand Brain, coordina sub-agentes y convierte ideas en presencia global con aprobación humana.
+              </p>
+              <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+                <a href="#onboarding" className="rounded-xl bg-brand-600 px-8 py-3.5 text-base font-semibold text-white transition hover:bg-brand-700">
+                  Crear mi Brand Brain
+                </a>
+                <a href="#agents" className="rounded-xl border border-slate-200 px-8 py-3.5 text-base font-semibold text-slate-700 transition hover:bg-slate-50">
+                  Ver sistema de agentes
+                </a>
               </div>
             </div>
-            <TypewriterDemo />
+            <div className="relative rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
+              <div className="space-y-3">
+                {[
+                  { label: "Regla aprendida", value: "Evitar buzzwords y frases genéricas de IA" },
+                  { label: "Voice match", value: "94% — mejorando con cada corrección" },
+                  { label: "Canales listos", value: "X · LinkedIn · Substack · TikTok script" },
+                  { label: "Editor Agent", value: "Sin AI slop detectado — aprobado" },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white px-4 py-3">
+                    <span className="mt-0.5 text-xs text-brand-600">◆</span>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{item.label}</p>
+                      <p className="mt-1 text-sm text-slate-700">{item.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* FEATURES BENTO */}
-      <section className="py-32 px-6">
-        <div className="max-w-6xl mx-auto">
-          <Section delay={0}>
-            <p className="font-accent text-[10px] uppercase tracking-[0.3em] text-muted mb-4">Capacidades</p>
-            <h2 className="font-display text-4xl md:text-5xl text-primary mb-16 max-w-xl leading-tight">
-              Todo lo que necesitas para escribir a escala.
-            </h2>
-          </Section>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Section delay={100} className="lg:col-span-2">
-              <div className="group bg-surface/50 border border-white/5 rounded-3xl p-8 h-full hover:border-peach/20 hover:-translate-y-1 transition-all duration-500">
-                <div className="flex items-center gap-3 mb-5">
-                  <span className="text-peach font-accent text-xs uppercase tracking-widest">01</span>
-                  <h3 className="text-xl font-display text-primary">Memoria persistente</h3>
-                </div>
-                <p className="text-secondary leading-relaxed">Cada aprobacion, cada correccion, cada rechazo alimenta un perfil de voz que mejora con el tiempo. La proxima generacion sera mas precisa que la anterior.</p>
+      {/* Social proof + testimonio */}
+      <section className="px-6 py-16 bg-slate-50">
+        <div className="mx-auto max-w-6xl">
+          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <svg className="mx-auto h-10 w-10 text-brand-200" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
+            <blockquote className="mx-auto mt-6 max-w-3xl text-2xl font-medium leading-9 text-slate-900">
+              "Ghostwriter nos devolvió 20 horas semanales. La coherencia de marca entre LinkedIn y newsletter mejoró un 300%. Voice match del 94%. No es un generador de texto, es un miembro del equipo."
+            </blockquote>
+            <div className="mt-8 flex items-center justify-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 font-bold">MC</div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-slate-900">Mariana Costa</p>
+                <p className="text-xs text-slate-500">CEO, PiscuLabs · Founder agresivo</p>
               </div>
-            </Section>
-            <Section delay={200}>
-              <div className="group bg-surface/50 border border-white/5 rounded-3xl p-8 h-full hover:border-mint/20 hover:-translate-y-1 transition-all duration-500">
-                <div className="flex items-center gap-3 mb-5">
-                  <span className="text-mint font-accent text-xs uppercase tracking-widest">02</span>
-                  <h3 className="text-xl font-display text-primary">Multiplataforma</h3>
-                </div>
-                <p className="text-secondary leading-relaxed">X, Substack, LinkedIn, TikTok. Mismo tema, distinto formato. Adaptacion nativa por plataforma.</p>
-              </div>
-            </Section>
-            <Section delay={300}>
-              <div className="group bg-surface/50 border border-white/5 rounded-3xl p-8 h-full hover:border-lavender/20 hover:-translate-y-1 transition-all duration-500">
-                <div className="flex items-center gap-3 mb-5">
-                  <span className="text-lavender font-accent text-xs uppercase tracking-widest">03</span>
-                  <h3 className="text-xl font-display text-primary">Loop de feedback</h3>
-                </div>
-                <p className="text-secondary leading-relaxed">Aprobas un draft? Aprende. Rechazas? Aprende mas. Corregis una frase? Eso pesa mas que mil ejemplos.</p>
-              </div>
-            </Section>
-            <Section delay={400} className="lg:col-span-2">
-              <div className="group bg-surface/50 border border-white/5 rounded-3xl p-8 h-full hover:border-rose/20 hover:-translate-y-1 transition-all duration-500">
-                <div className="flex items-center gap-3 mb-5">
-                  <span className="text-rose font-accent text-xs uppercase tracking-widest">04</span>
-                  <h3 className="text-xl font-display text-primary">Privacidad total</h3>
-                </div>
-                <p className="text-secondary leading-relaxed">Tu voz no entrena modelos publicos. Tu data es tuya. Borrala cuando quieras. Sin compromisos ocultos.</p>
-              </div>
-            </Section>
+            </div>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-6 border-t border-slate-100 pt-8 opacity-60">
+              {["Acme Inc", "Globex", "Hooli", "Initech", "Massive"].map((name) => (
+                <span key={name} className="text-lg font-bold text-slate-400">{name}</span>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section id="how" className="py-32 px-6 border-t border-white/5 relative overflow-hidden">
-        <div className="absolute top-0 bottom-0 left-[28px] md:left-[72px] w-[1px] bg-gradient-to-b from-peach/20 via-lavender/15 to-transparent" />
-        <div className="max-w-6xl mx-auto">
-          <Section delay={0}>
-            <p className="font-accent text-[10px] uppercase tracking-[0.3em] text-muted mb-4">Proceso</p>
-            <h2 className="font-display text-4xl md:text-5xl text-primary mb-20 max-w-xl leading-tight">
-              De cero a tu voz en tres pasos.
+      {/* Marquee */}
+      <div className="border-y border-slate-100 bg-white py-4 overflow-hidden">
+        <div className="flex animate-marquee whitespace-nowrap">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <span key={i} className="mx-8 text-sm font-medium text-slate-400">
+              Memoria persistente · Feedback loop real · Drafts en segundos · Aprobás vos, siempre · X · LinkedIn · Substack · TikTok · Voice Agent · Speed to Content · Brand Brain ·
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats */}
+      <section className="px-6 py-16">
+        <div className="mx-auto grid max-w-5xl grid-cols-3 gap-8 border-t border-slate-100 pt-10">
+          <div className="text-center">
+            <div className="text-4xl font-bold text-slate-900">120x</div>
+            <p className="mt-1 text-sm text-slate-500">más rápido que redacción manual</p>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-slate-900">60s</div>
+            <p className="mt-1 text-sm text-slate-500">de idea a draft aprobado</p>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-slate-900">∞</div>
+            <p className="mt-1 text-sm text-slate-500">memoria que compone valor</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Brand Brain */}
+      <section id="brain" className="px-6 py-24 bg-slate-50">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-sm font-semibold text-brand-600">The asset</p>
+          <div className="mt-4 grid gap-8 lg:grid-cols-2">
+            <h2 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
+              El Brand Brain reemplaza al prompt.
             </h2>
-          </Section>
-          <div className="space-y-20">
-            {[
-              { n: "01", title: "Ingesta", desc: "Pegas tus posts, tweets, newsletters. El sistema extrae tu tono, ritmo, vocabulario y temas recurrentes. No importa el formato.", color: "bg-peach" },
-              { n: "02", title: "Genera", desc: "Escribis un tema y elegis la plataforma. El sistema genera tres versiones distintas, cada una con tu voz, adaptada al formato que necesitas.", color: "bg-lavender" },
-              { n: "03", title: "Refina", desc: "Aprobas, rechazas o corregis. Cada decision alimenta la memoria. La proxima vez, acierta de entrada.", color: "bg-mint" },
-            ].map((s, i) => (
-              <Section key={i} delay={i * 150} className="relative pl-14 md:pl-32">
-                <span className="font-display text-[clamp(60px,10vw,140px)] leading-none text-white/[0.025] absolute -top-4 left-0 select-none">{s.n}</span>
-                <div className={`w-3 h-3 rounded-full ${s.color} absolute left-[22px] md:left-[66px] top-2`} />
-                <div className="relative z-10">
-                  <h3 className="font-display text-3xl md:text-4xl text-primary mb-4">{s.title}</h3>
-                  <p className="text-secondary max-w-md leading-relaxed text-lg">{s.desc}</p>
+            <p className="text-lg leading-8 text-slate-600">
+              Cada post, audio, URL y corrección entrena un activo digital permanente. No pedís contenido desde cero: activás un cerebro de marca que recuerda cómo hablás, qué evitás y qué estilo convierte.
+            </p>
+          </div>
+          <div className="mt-16 grid gap-6 md:grid-cols-3">
+            {brainFeatures.map((f) => (
+              <div key={f.title} className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                 </div>
-              </Section>
+                <h3 className="text-lg font-bold text-slate-900">{f.title}</h3>
+                <p className="mt-2 leading-7 text-slate-600">{f.desc}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* FREE TOOL */}
-      <section id="tool" className="py-32 px-6 border-t border-white/5">
-        <div className="max-w-3xl mx-auto">
-          <Section delay={0}>
-            <p className="font-accent text-[10px] uppercase tracking-[0.3em] text-muted mb-4">Herramienta gratuita</p>
-            <h2 className="font-display text-4xl md:text-5xl text-primary mb-4 leading-tight">Descubri tu voz</h2>
-            <p className="text-secondary mb-16 text-lg max-w-lg">Analiza tu tono, estilo y temas en segundos. Sin registro.</p>
-          </Section>
-          <Section delay={200}><VoiceToolSection /></Section>
-        </div>
-      </section>
-
-      {/* COMPARISON */}
-      <section className="py-32 px-6 border-t border-white/5">
-        <div className="max-w-6xl mx-auto">
-          <Section delay={0}>
-            <p className="font-accent text-[10px] uppercase tracking-[0.3em] text-muted mb-4">Comparativa</p>
-            <h2 className="font-display text-4xl md:text-5xl text-primary mb-16 leading-tight">Ghostwriter vs el resto.</h2>
-          </Section>
-          <div className="grid grid-cols-1 md:grid-cols-2 border border-white/5 rounded-3xl overflow-hidden">
-            <div className="p-8 md:p-12 border-b md:border-b-0 md:border-r border-white/5">
-              <h3 className="font-accent text-xs uppercase tracking-widest text-peach mb-10">Ghostwriter</h3>
-              <ul className="space-y-5">
-                {["Memoria de voz persistente","Loop de feedback con correcciones","Adaptacion nativa por plataforma","Perfil de voz unico","Sin prompts genericos","Privacidad total"].map((f,i) => (
-                  <li key={i} className="text-primary/80 text-sm flex items-start gap-3">
-                    <span className="text-peach mt-0.5 font-display">?</span>{f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="p-8 md:p-12">
-              <h3 className="font-accent text-xs uppercase tracking-widest text-muted mb-10">Otros</h3>
-              <ul className="space-y-5">
-                {["Sin memoria entre sesiones","Sin aprendizaje de correcciones","Formato unico para todas","Prompts genericos","Copy de IA detectable","Datos en servidores compartidos"].map((f,i) => (
-                  <li key={i} className="text-primary/20 text-sm flex items-start gap-3">
-                    <span className="mt-0.5">?</span>{f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* PRICING */}
-      <section id="pricing" className="py-32 px-6 border-t border-white/5">
-        <div className="max-w-6xl mx-auto">
-          <Section delay={0}>
-            <p className="font-accent text-[10px] uppercase tracking-[0.3em] text-muted mb-4">Precios</p>
-            <h2 className="font-display text-4xl md:text-5xl text-primary mb-16 leading-tight">Simple. Sin sorpresas.</h2>
-          </Section>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
-            <Section delay={100}>
-              <div className="bg-surface/50 border border-white/5 rounded-3xl p-10 h-full hover:border-white/10 transition-all duration-500">
-                <h3 className="text-lg font-display text-primary mb-2">Gratis</h3>
-                <p className="text-muted text-sm font-accent mb-8">Para probar la voz</p>
-                <div className="font-display text-5xl text-primary mb-8">$0<span className="text-base text-muted">/mes</span></div>
-                <ul className="space-y-3 text-secondary text-sm"><li>Analisis de voz</li><li>3 drafts de prueba</li><li>1 plataforma</li></ul>
+      {/* Agents */}
+      <section id="agents" className="px-6 py-24">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-sm font-semibold text-brand-600">Execution layer</p>
+          <h2 className="mt-4 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
+            No conversa. Coordina trabajo.
+          </h2>
+          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {agents.map((a) => (
+              <div key={a.name} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600 font-bold text-sm">
+                  {a.name[0]}
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">{a.name} Agent</h3>
+                <p className="mt-3 leading-7 text-slate-600">{a.copy}</p>
               </div>
-            </Section>
-            <Section delay={200}>
-              <div className="bg-peach rounded-3xl p-10 h-full hover:shadow-[0_0_60px_rgba(232,168,124,0.15)] transition-all duration-500">
-                <h3 className="text-lg font-display text-background mb-2">Pro</h3>
-                <p className="text-background/50 text-sm font-accent mb-8">Para creadores serios</p>
-                <div className="font-display text-5xl text-background mb-8">$29<span className="text-base text-background/50">/mes</span></div>
-                <ul className="space-y-3 text-background/70 text-sm"><li>Memoria ilimitada</li><li>Multiplataforma</li><li>Loop de feedback</li><li>Exportar drafts</li><li>Soporte prioritario</li></ul>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Onboarding */}
+      <section id="onboarding" className="px-6 py-24 bg-slate-50">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-sm font-semibold text-brand-600">Onboarding en 3 minutos</p>
+          <h2 className="mt-4 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
+            De cero a clon operativo.
+          </h2>
+          <div className="mt-12 grid gap-10 lg:grid-cols-[0.4fr_1fr]">
+            <div className="space-y-4">
+              {phases.map((phase, i) => (
+                <div key={phase} className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-sm font-bold text-brand-600">
+                    {i + 1}
+                  </div>
+                  <p className="text-sm leading-6 text-slate-700">{phase}</p>
+                </div>
+              ))}
+            </div>
+            <BrainBuilder />
+          </div>
+        </div>
+      </section>
+
+      {/* Comparison */}
+      <section className="px-6 py-24">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-sm font-semibold text-brand-600">Category shift</p>
+          <h2 className="mt-4 max-w-4xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
+            La redacción manual es el viejo CRM de la marca personal.
+          </h2>
+          <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-600">
+            El próximo salto no es escribir más rápido en un chat. Es tener un sistema que entiende contexto, protege voz, coordina agentes y convierte tu pensamiento en distribución.
+          </p>
+          <div className="mt-12 space-y-4">
+            {comparisons.map(([oldLabel, oldCopy, newLabel, newCopy], i) => (
+              <div key={oldLabel} className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-white p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{oldLabel}</p>
+                  <p className="mt-2 text-slate-500">{oldCopy}</p>
+                </div>
+                <div className="rounded-xl border border-brand-200 bg-brand-50 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">{newLabel}</p>
+                  <p className="mt-2 text-slate-700">{newCopy}</p>
+                </div>
               </div>
-            </Section>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* MANIFESTO */}
-      <section className="py-48 px-6 border-t border-white/5 relative overflow-hidden">
-        <div className="morph-blob absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(232,168,124,0.04),transparent)] pointer-events-none" />
-        <div className="max-w-4xl mx-auto text-center relative z-10">
-          <Section delay={0}>
-            <p className="font-display text-3xl md:text-5xl lg:text-6xl text-primary italic leading-tight">
-              &ldquo;La IA no deberia sonar a IA.<br />Deberia sonar a vos.&rdquo;
-            </p>
-          </Section>
+      {/* Pricing */}
+      <section id="pricing" className="px-6 py-24 bg-slate-50">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-sm font-semibold text-brand-600">Pricing</p>
+          <h2 className="mt-4 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
+            Contratá tu Voice Agent.
+          </h2>
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {[
+              { name: "Founder", price: "$499", period: "/mes", desc: "Para personal brands de founders que quieren escalar su voz sin perder autenticidad.", features: ["1 voz entrenada", "3 plataformas", "20 drafts/semana", "Approval-first", "Brand Brain básico"], cta: "Empezar", featured: false },
+              { name: "Brand System", price: "$2,499", period: "/mes", desc: "Para startups y empresas que gestionan múltiples voces de marca.", features: ["5 voces entrenadas", "Todas las plataformas", "Drafts ilimitados", "API access", "Team collaboration", "Analytics básico"], cta: "Solicitar demo", featured: true },
+              { name: "Enterprise", price: "Custom", period: "", desc: "Para agencias premium y marcas globales que necesitan white-label y control total.", features: ["Voces ilimitadas", "White-label", "SSO + SLA 99.9%", "CSM dedicado", "Custom integrations", "Audit logs"], cta: "Contactar ventas", featured: false },
+            ].map((plan) => (
+              <div key={plan.name} className={`rounded-2xl border bg-white p-8 shadow-sm ${plan.featured ? "border-brand-300 ring-1 ring-brand-300" : "border-slate-200"}`}>
+                {plan.featured && <div className="mb-4 inline-block rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">RECOMENDADO</div>}
+                <p className="text-sm font-semibold text-slate-500">{plan.name}</p>
+                <div className="mt-3 flex items-baseline gap-1">
+                  <span className="text-4xl font-bold text-slate-900">{plan.price}</span>
+                  <span className="text-slate-500">{plan.period}</span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{plan.desc}</p>
+                <ul className="mt-6 space-y-3">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-slate-600">
+                      <span className="mt-0.5 text-brand-600">✓</span>{f}
+                    </li>
+                  ))}
+                </ul>
+                <button className={`mt-8 w-full rounded-xl py-3 font-semibold transition ${plan.featured ? "bg-brand-600 text-white hover:bg-brand-700" : "border border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+                  {plan.cta}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="py-16 px-6 border-t border-white/5">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <span className="font-display text-xl text-primary">GW</span>
-          <div className="flex gap-8 text-sm text-muted">
-            <a href="#" className="hover:text-primary transition-colors">Twitter</a>
-            <a href="#" className="hover:text-primary transition-colors">GitHub</a>
-            <a href="#" className="hover:text-primary transition-colors">Contacto</a>
+      {/* ROI */}
+      <section id="roi" className="px-6 py-24">
+        <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl bg-brand-600 p-10 md:p-16">
+          <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold text-brand-200">Speed to Content</p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                Te devolvemos 40 horas al mes y convertimos tu voz en infraestructura.
+              </h2>
+              <p className="mt-4 text-lg leading-8 text-brand-100">
+                El ROI no está en generar más texto. Está en eliminar revisión infinita, mantener coherencia de marca y ejecutar distribución multicanal.
+              </p>
+            </div>
+            <div className="grid shrink-0 grid-cols-2 gap-4">
+              <div className="rounded-xl bg-white/10 p-5 text-center">
+                <div className="text-3xl font-bold text-white">120x</div>
+                <p className="mt-1 text-xs text-brand-200">más rápido</p>
+              </div>
+              <div className="rounded-xl bg-white/10 p-5 text-center">
+                <div className="text-3xl font-bold text-white">5</div>
+                <p className="mt-1 text-xs text-brand-200">correcciones → 95% match</p>
+              </div>
+            </div>
           </div>
-          <span className="text-xs text-muted/40 font-accent">2025 Ghostwriter</span>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="px-6 py-24 bg-slate-50">
+        <div className="mx-auto max-w-3xl">
+          <p className="text-sm font-semibold text-brand-600">FAQ</p>
+          <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
+            Preguntas que importan.
+          </h2>
+          <div className="mt-10 space-y-3">
+            {faqs.map((faq, i) => (
+              <div key={i} className="rounded-xl border border-slate-200 bg-white">
+                <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="flex w-full items-center justify-between px-6 py-5 text-left">
+                  <span className="text-sm font-medium text-slate-900">{faq.q}</span>
+                  <span className="text-xl text-slate-400 transition-transform duration-300" style={{ transform: openFaq === i ? "rotate(45deg)" : "rotate(0)" }}>+</span>
+                </button>
+                <div className="overflow-hidden transition-all duration-500" style={{ maxHeight: openFaq === i ? "200px" : "0", opacity: openFaq === i ? 1 : 0 }}>
+                  <p className="px-6 pb-5 text-sm leading-7 text-slate-600">{faq.a}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="px-6 pb-20">
+        <div className="mx-auto max-w-4xl rounded-3xl bg-slate-900 p-10 text-center md:p-16">
+          <p className="text-sm font-semibold text-brand-400">Global Day Zero</p>
+          <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+            Tu voz puede estar en todas partes sin que vos estés escribiendo.
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-8 text-slate-300">
+            El producto no promete crecer por magia. Promete construir infraestructura: memoria, control, velocidad y consistencia para competir globalmente.
+          </p>
+          <a href="#onboarding" className="mt-8 inline-flex rounded-xl bg-brand-600 px-8 py-3.5 font-semibold text-white transition hover:bg-brand-700">
+            Construir mi Voice Agent
+          </a>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-100 px-6 py-12">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 md:flex-row">
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold text-slate-900">Ghostwriter</span>
+            <span className="text-xs text-slate-400">Agentic Brand System</span>
+          </div>
+          <div className="flex items-center gap-6 text-sm text-slate-500">
+            <a href="#brain" className="transition hover:text-slate-900">Brand Brain</a>
+            <a href="#agents" className="transition hover:text-slate-900">Agents</a>
+            <a href="#pricing" className="transition hover:text-slate-900">Pricing</a>
+            <a href="#roi" className="transition hover:text-slate-900">ROI</a>
+          </div>
+          <p className="text-xs text-slate-400">© 2025 PiscuLabs</p>
         </div>
       </footer>
     </main>
-  );
-}
-
-function VoiceToolSection() {
-  const [text, setText] = useState("");
-  const [result, setResult] = useState<{tone:string;style:string;topics:string;hook:string}|null>(null);
-  const [loading, setLoading] = useState(false);
-  const analyze = () => {
-    if (!text.trim()) return;
-    setLoading(true);
-    setTimeout(() => {
-      const words = text.split(/\s+/);
-      const sentences = text.split(/[.!?]+/).filter(Boolean);
-      const avg = words.length / Math.max(sentences.length, 1);
-      const tone = avg < 12 ? "Directo, sin filtro" : avg < 20 ? "Balanceado, explicativo" : "Profundo, academico";
-      const style = text.includes("?") && text.includes("!") ? "Interrogativo-energico" : text.includes("-") ? "Narrativo en bloques" : "Conversacional fluido";
-      const first = sentences[0]?.trim() || "";
-      setResult({ tone, style, topics: "Growth, producto, mindset", hook: first.length > 60 ? first.slice(0,60)+"..." : first });
-      setLoading(false);
-    }, 1800);
-  };
-  return (
-    <div className="space-y-8">
-      <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Pega aca 3 posts tuyos..." className="w-full h-48 bg-transparent border border-white/10 rounded-2xl p-6 text-primary/80 placeholder:text-muted focus:border-peach/40 focus:outline-none resize-none text-base leading-relaxed transition-colors" />
-      <button onClick={analyze} disabled={loading} className="bg-peach text-background px-8 py-3 rounded-full text-sm font-semibold tracking-wide transition-all duration-300 hover:shadow-[0_0_30px_rgba(232,168,124,0.3)] hover:scale-105 disabled:opacity-40">
-        {loading ? "Analizando..." : "Descubri tu voz"}
-      </button>
-      {result && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-up">
-          {([
-            { label: "Tono", val: result.tone },
-            { label: "Estilo", val: result.style },
-            { label: "Temas", val: result.topics },
-            { label: "Hook", val: `"${result.hook}"` },
-          ] as {label:string;val:string}[]).map((r, i) => (
-            <div key={i} className="bg-surface/50 border border-white/5 rounded-2xl p-6 hover:border-peach/20 transition-all duration-500">
-              <span className="font-accent text-[10px] uppercase tracking-[0.3em] text-muted block mb-3">{r.label}</span>
-              <p className="text-primary/80 font-display text-xl">{r.val}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
