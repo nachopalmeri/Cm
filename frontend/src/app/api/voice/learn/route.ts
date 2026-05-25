@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import Groq from 'groq-sdk'
+import { analyzeDiff } from '@/lib/diff/analyzer'
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -8,6 +10,12 @@ function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+}
+
+function getGroq() {
+  return new Groq({
+    apiKey: process.env.GROQ_API_KEY || 'placeholder'
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -51,17 +59,69 @@ export async function POST(req: NextRequest) {
       )
     }
     
-    // Simple rule extraction (will be improved in Paso 3)
+    // Intelligent rule extraction with diff analysis + Groq
+    console.log('[LEARN] Analyzing diff...')
+    const diffAnalysis = analyzeDiff(original_text, corrected_text)
+    console.log('[LEARN] Diff analysis:', JSON.stringify(diffAnalysis, null, 2))
+    
+    // Use Groq to extract a specific, actionable rule
+    console.log('[LEARN] Extracting rule with Groq...')
+    const groq = getGroq()
+    const rulePrompt = `Analiza esta corrección y extrae UNA regla específica y accionable.
+
+TEXTO ORIGINAL:
+${original_text}
+
+TEXTO CORREGIDO:
+${corrected_text}
+
+CAMBIOS DETECTADOS:
+- Palabras eliminadas: ${diffAnalysis.wordsRemoved.join(', ') || 'ninguna'}
+- Palabras agregadas: ${diffAnalysis.wordsAdded.join(', ') || 'ninguna'}
+- Cambios de estructura: ${diffAnalysis.structureChanges.lengthChange > 0 ? 'más largo' : diffAnalysis.structureChanges.lengthChange < 0 ? 'más corto' : 'similar'}
+- Hashtags cambiados: ${diffAnalysis.structureChanges.hasHashtagChanges ? 'sí' : 'no'}
+
+Extrae UNA regla específica en formato:
+"[ACCIÓN]: [RAZÓN]"
+
+Ejemplos:
+- "Usar 'herramientas' en lugar de 'soluciones': más concreto y accionable"
+- "Evitar hashtags genéricos: prefiere términos específicos"
+- "Acortar frases: mantener bajo 280 caracteres"
+
+Responde SOLO con la regla, sin explicaciones adicionales.`
+
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'Eres un experto en análisis de estilo de escritura. Extraes reglas específicas y accionables.' },
+        { role: 'user', content: rulePrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 150
+    })
+    
+    const ruleText = completion.choices[0]?.message?.content?.trim() || 'Corrección aplicada: preferencia del usuario'
+    console.log('[LEARN] Extracted rule:', ruleText)
+    
+    // Determine primary category from diff analysis
+    const primaryCategory = diffAnalysis.categories[0] || 'tone'
+    
+    // Calculate confidence based on clarity of changes
+    const confidence = calculateConfidence(diffAnalysis)
+    
     const extractedRule = {
-      rule: `Corrección aplicada: preferencia del usuario`,
-      category: 'tone' as const,
-      confidence: 80,
+      rule: ruleText,
+      category: primaryCategory,
+      confidence,
       examples: {
         before: original_text.slice(0, 100),
         after: corrected_text.slice(0, 100)
       },
       created_at: new Date().toISOString()
     }
+    
+    console.log('[LEARN] Final rule:', JSON.stringify(extractedRule, null, 2))
     
     // Save correction to database
     const { data: correction, error: correctionError } = await supabase
@@ -127,4 +187,28 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/**
+ * Calculate confidence score based on diff analysis
+ */
+function calculateConfidence(diffAnalysis: any): number {
+  let confidence = 70 // Base confidence
+  
+  // More specific word changes = higher confidence
+  if (diffAnalysis.wordsRemoved.length > 0 && diffAnalysis.wordsAdded.length > 0) {
+    confidence += 10
+  }
+  
+  // Phrase-level changes = higher confidence
+  if (diffAnalysis.phrasesChanged.length > 0) {
+    confidence += 10
+  }
+  
+  // Multiple categories = more comprehensive change = higher confidence
+  if (diffAnalysis.categories.length > 1) {
+    confidence += 5
+  }
+  
+  return Math.min(confidence, 95)
 }

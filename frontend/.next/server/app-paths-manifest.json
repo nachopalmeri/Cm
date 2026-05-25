@@ -1,5 +1,3 @@
 {
-  "/api/voice/learn/route": "app/api/voice/learn/route.js",
-  "/api/drafts/generate/route": "app/api/drafts/generate/route.js",
-  "/api/drafts/route": "app/api/drafts/route.js"
+  "/api/voice/learn/route": "app/api/voice/learn/route.js"
 }
