@@ -4,17 +4,23 @@ import Groq from 'groq-sdk'
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || 'placeholder'
-})
+function getGroq() {
+  return new Groq({
+    apiKey: process.env.GROQ_API_KEY || 'placeholder'
+  })
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = getSupabase()
+    const groq = getGroq()
     const { topic, channel, format } = await req.json()
     
     if (!topic || !channel) {

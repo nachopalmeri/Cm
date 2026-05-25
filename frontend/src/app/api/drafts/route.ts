@@ -3,14 +3,17 @@ import { createClient } from '@supabase/supabase-js'
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
 // GET /api/drafts - List user's drafts
 export async function GET(req: NextRequest) {
   try {
+    const supabase = getSupabase()
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const limit = parseInt(searchParams.get('limit') || '50')

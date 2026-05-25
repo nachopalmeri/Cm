@@ -3,14 +3,17 @@ import { createClient } from '@supabase/supabase-js'
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
 // GET /api/brain - Get user's active brain
 export async function GET(req: NextRequest) {
   try {
+    const supabase = getSupabase()
     const { data: brain, error } = await supabase
       .from('brand_brains')
       .select('*')
@@ -40,6 +43,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const updates = await req.json()
+    const supabase = getSupabase()
     
     const { data: brain, error } = await supabase
       .from('brand_brains')
