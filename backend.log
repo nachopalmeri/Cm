@@ -1,0 +1,7 @@
+INFO:     Will watch for changes in these directories: ['/home/user/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [7123] using WatchFiles
+INFO:     Started server process [7157]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     172.20.0.1:0 - "GET /?_cb=1779724845751 HTTP/1.1" 404 Not Found

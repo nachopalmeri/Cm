@@ -1,0 +1,8 @@
+{
+  "startupCommands": [
+    "cd /home/user/app/backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "cd /home/user/app/frontend && npm run dev"
+  ],
+  "projectId": "c788dc16-39c2-48a5-9978-2d7f09b34bed",
+  "templateId": "any"
+}

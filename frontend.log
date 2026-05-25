@@ -1,0 +1,21 @@
+
+> ghostwriter-frontend@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+ ✓ Ready in 1107ms
+ ○ Compiling / ...
+ ✓ Compiled / in 2.3s (462 modules)
+ GET /?_cb=1779724835608 200 in 2485ms
+ ✓ Compiled in 218ms (238 modules)
+ GET /?_cb=1779724835608 200 in 37ms
+ GET /?_cb=1779724845751 200 in 35ms
+ GET /?_cb=1779724845751 200 in 34ms
