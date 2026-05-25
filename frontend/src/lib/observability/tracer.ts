@@ -3,6 +3,8 @@
  * Tracks execution flow and performance
  */
 
+import { createClient } from '@supabase/supabase-js'
+
 export interface Trace {
   trace_id: string
   operation: string
@@ -25,9 +27,22 @@ export interface Span {
 }
 
 /**
- * In-memory trace storage (replace with persistent storage in production)
+ * In-memory trace storage (fallback)
  */
 const traces = new Map<string, Trace>()
+
+/**
+ * Get Supabase client
+ */
+function getSupabase() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return null
+  }
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+}
 
 /**
  * Start a new trace
@@ -54,7 +69,7 @@ export function startTrace(operation: string, metadata: Record<string, any> = {}
 /**
  * End a trace
  */
-export function endTrace(trace_id: string, status: 'success' | 'error' = 'success'): void {
+export async function endTrace(trace_id: string, status: 'success' | 'error' = 'success'): Promise<void> {
   const trace = traces.get(trace_id)
   if (!trace) return
   
@@ -66,6 +81,9 @@ export function endTrace(trace_id: string, status: 'success' | 'error' = 'succes
   trace.status = status
   
   console.log(`[TRACE] Ended: ${trace.operation} (${trace_id}) - ${status} in ${duration_ms}ms`)
+  
+  // Persist to Supabase
+  await persistTrace(trace)
 }
 
 /**
@@ -164,6 +182,38 @@ function generateId(): string {
 }
 
 /**
+ * Persist trace to Supabase
+ */
+async function persistTrace(trace: Trace): Promise<void> {
+  const supabase = getSupabase()
+  if (!supabase) {
+    console.warn('[TRACE] Supabase not configured, skipping persistence')
+    return
+  }
+  
+  try {
+    const { error } = await supabase
+      .from('traces')
+      .insert({
+        trace_id: trace.trace_id,
+        operation: trace.operation,
+        started_at: trace.started_at,
+        ended_at: trace.ended_at,
+        duration_ms: trace.duration_ms,
+        status: trace.status,
+        metadata: trace.metadata,
+        spans: trace.spans
+      })
+    
+    if (error) {
+      console.error('[TRACE] Failed to persist trace:', error)
+    }
+  } catch (error) {
+    console.error('[TRACE] Error persisting trace:', error)
+  }
+}
+
+/**
  * Helper: Trace async function
  */
 export async function traceAsync<T>(
@@ -175,10 +225,10 @@ export async function traceAsync<T>(
   
   try {
     const result = await fn(trace_id)
-    endTrace(trace_id, 'success')
+    await endTrace(trace_id, 'success')
     return result
   } catch (error) {
-    endTrace(trace_id, 'error')
+    await endTrace(trace_id, 'error')
     throw error
   }
 }

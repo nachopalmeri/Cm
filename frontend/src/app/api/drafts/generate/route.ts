@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       })
       
       // Track cost (estimate: ~500 prompt + ~200 completion tokens)
-      trackCost(
+      await trackCost(
         'draft-generation',
         'llama-3.3-70b-versatile',
         500,

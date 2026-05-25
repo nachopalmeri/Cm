@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       })
       
       // Track cost (estimate: ~300 prompt + ~50 completion tokens)
-      trackCost(
+      await trackCost(
         'voice-learning',
         'llama-3.3-70b-versatile',
         300,

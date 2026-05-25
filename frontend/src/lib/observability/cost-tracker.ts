@@ -3,6 +3,8 @@
  * Tracks Groq API costs and usage
  */
 
+import { createClient } from '@supabase/supabase-js'
+
 export interface CostRecord {
   id: string
   trace_id?: string
@@ -30,21 +32,34 @@ const GROQ_PRICING = {
 }
 
 /**
- * In-memory cost storage
+ * In-memory cost storage (fallback)
  */
 const costs: CostRecord[] = []
 
 /**
+ * Get Supabase client
+ */
+function getSupabase() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return null
+  }
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+}
+
+/**
  * Track API cost
  */
-export function trackCost(
+export async function trackCost(
   operation: string,
   model: string,
   promptTokens: number,
   completionTokens: number,
   trace_id?: string,
   metadata: Record<string, any> = {}
-): CostRecord {
+): Promise<CostRecord> {
   const pricing = GROQ_PRICING[model as keyof typeof GROQ_PRICING]
   
   if (!pricing) {
@@ -86,7 +101,42 @@ export function trackCost(
   
   console.log(`[COST] ${operation}: $${cost_usd.toFixed(4)} (${promptTokens + completionTokens} tokens)`)
   
+  // Persist to Supabase
+  await persistCost(record)
+  
   return record
+}
+
+/**
+ * Persist cost to Supabase
+ */
+async function persistCost(record: CostRecord): Promise<void> {
+  const supabase = getSupabase()
+  if (!supabase) {
+    console.warn('[COST] Supabase not configured, skipping persistence')
+    return
+  }
+  
+  try {
+    const { error } = await supabase
+      .from('costs')
+      .insert({
+        id: record.id,
+        trace_id: record.trace_id,
+        operation: record.operation,
+        model: record.model,
+        tokens: record.tokens,
+        cost_usd: record.cost_usd,
+        timestamp: record.timestamp,
+        metadata: record.metadata
+      })
+    
+    if (error) {
+      console.error('[COST] Failed to persist cost:', error)
+    }
+  } catch (error) {
+    console.error('[COST] Error persisting cost:', error)
+  }
 }
 
 /**
