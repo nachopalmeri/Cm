@@ -49,6 +49,14 @@ export async function POST(req: NextRequest) {
     const sampleTexts = brain.sample_texts || []
     const rules = brain.rules || []
     
+    // Fetch recent corrections to learn from
+    const { data: corrections } = await supabase
+      .from('corrections')
+      .select('original_text, corrected_text, extracted_rule')
+      .eq('brain_id', brain.id)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    
     const channelInstructions = {
       twitter: format === 'thread' 
         ? 'Create a Twitter thread (5-7 tweets, each under 280 characters). Number each tweet.'
@@ -60,19 +68,29 @@ export async function POST(req: NextRequest) {
     
     const instruction = channelInstructions[channel as keyof typeof channelInstructions] || channelInstructions.general
     
-    const systemPrompt = `You are a content writer that matches the user's brand voice perfectly.
+    const systemPrompt = `You are a content writer that learns from corrections and matches the user's brand voice perfectly.
 
-${sampleTexts.length > 0 ? `Sample Writing Style (MATCH THIS EXACTLY):
+${sampleTexts.length > 0 ? `SAMPLE WRITING STYLE (match this exactly):
 ${sampleTexts.slice(0, 3).join('\n\n---\n\n')}` : 'No sample texts yet. Write in a clear, direct style.'}
 
-${rules.length > 0 ? `Learned Rules (MUST FOLLOW):
-${rules.map((r: any) => `- ${r.rule}`).join('\n')}` : ''}
+${rules.length > 0 ? `LEARNED RULES (MUST follow):
+${rules.map((r: any) => `- [${r.category}] ${r.rule}`).join('\n')}` : ''}
+
+${corrections && corrections.length > 0 ? `
+RECENT CORRECTIONS (learn from these):
+${corrections.map((c: any) => `
+Original: ${c.original_text?.slice(0, 150) || ''}
+Corrected: ${c.corrected_text?.slice(0, 150) || ''}
+Why: ${c.extracted_rule?.rule || 'User preference'}
+`).join('\n---\n')}
+` : ''}
 
 ${instruction}
 
 IMPORTANT:
 - Match the tone and style exactly from the sample texts
 - Follow all learned rules
+- Apply patterns from recent corrections
 - Be authentic to the brand voice`
 
     // Generate with Groq

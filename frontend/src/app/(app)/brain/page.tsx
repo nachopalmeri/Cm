@@ -142,12 +142,74 @@ export default function BrainPage() {
 
   const saveCorrection = async () => {
     if (!selectedDraft) return;
-    // This will be implemented when voice/learn API is ready
-    const updated = drafts.map((d) => d.id === selectedDraft.id ? { ...d, content: editText, corrections_count: d.corrections_count + 1 } : d);
-    setDrafts(updated);
-    setSelectedDraft(null);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 2500);
+    
+    setSaving(true);
+    try {
+      // 1. Call voice/learn API to extract rule and update brain
+      const learnRes = await fetch('/api/voice/learn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draft_id: selectedDraft.id,
+          original_text: selectedDraft.content,
+          corrected_text: editText
+        })
+      });
+      
+      if (!learnRes.ok) {
+        throw new Error(`HTTP ${learnRes.status}`);
+      }
+      
+      const learnData = await learnRes.json();
+      
+      if (learnData.error) {
+        throw new Error(learnData.error);
+      }
+      
+      // 2. Update draft in Supabase
+      const updateRes = await fetch(`/api/drafts/${selectedDraft.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: editText,
+          corrections_count: selectedDraft.corrections_count + 1
+        })
+      });
+      
+      if (!updateRes.ok) {
+        throw new Error('Failed to update draft');
+      }
+      
+      const updateData = await updateRes.json();
+      
+      // 3. Update UI
+      const updatedDrafts = drafts.map((d) => 
+        d.id === selectedDraft.id 
+          ? updateData.draft
+          : d
+      );
+      setDrafts(updatedDrafts);
+      
+      // 4. Add new rule to UI
+      if (learnData.newRule) {
+        setRules([learnData.newRule, ...rules]);
+      }
+      
+      // 5. Update voice match
+      if (learnData.voiceMatchScore) {
+        setVoiceMatch(learnData.voiceMatchScore);
+      }
+      
+      setSelectedDraft(null);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2500);
+      
+    } catch (error) {
+      console.error('Failed to save correction:', error);
+      setError('No se pudo guardar la corrección. Intenta de nuevo.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
