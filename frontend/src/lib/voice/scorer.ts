@@ -73,13 +73,20 @@ function analyzeCorrectionImpact(
  * Calculate similarity between two texts (Jaccard similarity)
  */
 function calculateTextSimilarity(text1: string, text2: string): number {
-  const words1 = new Set(tokenize(text1))
-  const words2 = new Set(tokenize(text2))
+  const words1 = tokenize(text1)
+  const words2 = tokenize(text2)
   
-  const intersection = new Set([...words1].filter(w => words2.has(w)))
-  const union = new Set([...words1, ...words2])
+  const set1 = new Set(words1)
+  const set2 = new Set(words2)
   
-  return union.size > 0 ? intersection.size / union.size : 0
+  let intersectionCount = 0
+  set1.forEach(word => {
+    if (set2.has(word)) intersectionCount++
+  })
+  
+  const unionCount = new Set(words1.concat(words2)).size
+  
+  return unionCount > 0 ? intersectionCount / unionCount : 0
 }
 
 /**
