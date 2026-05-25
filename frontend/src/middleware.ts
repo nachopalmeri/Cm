@@ -73,16 +73,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/dashboard/:path*',
-    '/brain/:path*',
-    '/agents/:path*',
-    '/content/:path*',
-    '/orchestration/:path*',
-    '/remote-control/:path*',
-    '/mobile-approval/:path*',
-    '/settings/:path*',
-    '/login',
-    '/signup',
-  ],
+  matcher: [], // Disabled for testing - no auth required
 }

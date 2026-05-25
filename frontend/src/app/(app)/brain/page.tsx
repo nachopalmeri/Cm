@@ -1,8 +1,6 @@
 "use client";
 
-
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Draft {
   id: number;
@@ -34,39 +32,117 @@ const initialRules: LearnedRule[] = [
 ];
 
 export default function BrainPage() {
-  const [drafts, setDrafts] = useState<Draft[]>(initialDrafts);
-  const [rules, setRules] = useState<LearnedRule[]>(initialRules);
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [rules, setRules] = useState<LearnedRule[]>([]);
   const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null);
   const [editText, setEditText] = useState("");
-  const [voiceMatch, setVoiceMatch] = useState(94);
+  const [voiceMatch, setVoiceMatch] = useState(85);
   const [showToast, setShowToast] = useState(false);
+  const [sampleTexts, setSampleTexts] = useState<string[]>([]);
+  const [newSampleText, setNewSampleText] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // Fetch brain data on mount
+  useEffect(() => {
+    fetchBrainData();
+    fetchDrafts();
+  }, []);
+
+  const fetchBrainData = async () => {
+    try {
+      const res = await fetch('/api/brain');
+      const data = await res.json();
+      if (data.brain) {
+        setVoiceMatch(data.brain.voice_match_score || 85);
+        setRules(data.brain.rules || []);
+        setSampleTexts(data.brain.sample_texts || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch brain:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDrafts = async () => {
+    try {
+      const res = await fetch('/api/drafts?limit=10');
+      const data = await res.json();
+      setDrafts(data.drafts || []);
+    } catch (error) {
+      console.error('Failed to fetch drafts:', error);
+    }
+  };
+
+  const addSampleText = async () => {
+    if (!newSampleText.trim()) return;
+    try {
+      const updatedTexts = [...sampleTexts, newSampleText];
+      await fetch('/api/brain', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sample_texts: updatedTexts })
+      });
+      setSampleTexts(updatedTexts);
+      setNewSampleText("");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2500);
+    } catch (error) {
+      console.error('Failed to add sample text:', error);
+    }
+  };
 
   const openEditor = (draft: Draft) => {
     setSelectedDraft(draft);
     setEditText(draft.content);
   };
 
-  const saveCorrection = () => {
+  const saveCorrection = async () => {
     if (!selectedDraft) return;
+    // This will be implemented when voice/learn API is ready
     const updated = drafts.map((d) => d.id === selectedDraft.id ? { ...d, content: editText, corrections: d.corrections + 1 } : d);
     setDrafts(updated);
-
-    const newRule: LearnedRule = {
-      id: rules.length + 1,
-      rule: `Regla aprendida de corrección en "${selectedDraft.title.slice(0, 30)}..."`,
-      source: `Corrección en draft #${selectedDraft.id}`,
-      date: "Ahora",
-    };
-    setRules([newRule, ...rules]);
-    setVoiceMatch((prev) => Math.min(prev + 1, 99));
+    setSelectedDraft(null);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 2500);
-    setSelectedDraft(null);
   };
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen"><div className="text-slate-600">Loading...</div></div>;
+  }
 
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold text-slate-900">Brand Brain</h1>
+
+      {/* Upload Sample Text */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-900 mb-4">Upload Sample Text</h2>
+        <p className="text-xs text-slate-500 mb-4">Add examples of your writing to train your brand voice</p>
+        <textarea
+          value={newSampleText}
+          onChange={(e) => setNewSampleText(e.target.value)}
+          placeholder="Paste your text here... (e.g., a tweet, blog post, or any content in your voice)"
+          className="w-full min-h-32 resize-none rounded-lg border border-slate-200 p-4 text-sm leading-7 text-slate-900 outline-none focus:border-brand-500"
+        />
+        <button
+          onClick={addSampleText}
+          disabled={!newSampleText.trim()}
+          className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
+        >
+          Add to Brain
+        </button>
+        {sampleTexts.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs font-medium text-slate-700">{sampleTexts.length} sample texts saved:</p>
+            {sampleTexts.map((text, idx) => (
+              <div key={idx} className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
+                {text.slice(0, 100)}{text.length > 100 ? '...' : ''}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Voice Match */}
       <div className="grid gap-6 md:grid-cols-3">
