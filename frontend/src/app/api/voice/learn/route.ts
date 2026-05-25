@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import Groq from 'groq-sdk'
-import { analyzeDiff } from '@/lib/diff/analyzer'
-import { calculateVoiceMatchDelta } from '@/lib/voice/scorer'
-import { normalizeUTF8 } from '@/lib/encoding/utf8'
+import { processCorrection } from '@/lib/services/voice-learning'
+import { addRuleToBrain, incrementCorrections, updateVoiceScore } from '@/lib/services/brain-manager'
+import { traceAsync, addSpan, endSpan } from '@/lib/observability/tracer'
+import { trackCost } from '@/lib/observability/cost-tracker'
+import { validateCorrection, checkRateLimit } from '@/lib/security/input-guard'
+import { filterOutput } from '@/lib/security/output-guard'
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -21,225 +24,188 @@ function getGroq() {
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json()
+  return traceAsync('voice-learning', async (trace_id) => {
+    try {
+      const body = await req.json()
+      const { draft_id, original_text, corrected_text } = body
+      
+      // Rate limiting
+      const rateLimit = checkRateLimit(TEST_USER_ID, 'voice-learning', 10, 60000)
+      if (!rateLimit.allowed) {
+        console.warn('[LEARN] Rate limit exceeded')
+        return NextResponse.json(
+          { error: 'Rate limit exceeded', resetAt: rateLimit.resetAt },
+          { status: 429 }
+        )
+      }
+      
+      // Input validation
+      const validation = validateCorrection(original_text, corrected_text)
+      if (!validation.valid) {
+        console.warn('[LEARN] Invalid input:', validation.errors)
+        return NextResponse.json(
+          { error: 'Invalid input', details: validation.errors },
+          { status: 400 }
+        )
+      }
+      
+      if (!draft_id) {
+        return NextResponse.json(
+          { error: 'draft_id is required' },
+          { status: 400 }
+        )
+      }
+      
+      const sanitized = validation.sanitized
+      const supabase = getSupabase()
+      const groq = getGroq()
     
-    // Normalize UTF-8 in request body
-    const draft_id = body.draft_id
-    const original_text = normalizeUTF8(body.original_text || '')
-    const corrected_text = normalizeUTF8(body.corrected_text || '')
+      // Get draft and brain
+      const span_fetch = addSpan(trace_id, 'fetch-draft-brain')
+      const { data: draft } = await supabase
+        .from('drafts')
+        .select('brain_id')
+        .eq('id', draft_id)
+        .single()
+      
+      if (!draft || !draft.brain_id) {
+        endSpan(trace_id, span_fetch, 'error')
+        return NextResponse.json(
+          { error: 'Draft or brain not found' },
+          { status: 404 }
+        )
+      }
+      
+      const { data: brain } = await supabase
+        .from('brand_brains')
+        .select('*')
+        .eq('id', draft.brain_id)
+        .single()
+      
+      if (!brain) {
+        endSpan(trace_id, span_fetch, 'error')
+        return NextResponse.json(
+          { error: 'Brain not found' },
+          { status: 404 }
+        )
+      }
+      endSpan(trace_id, span_fetch, 'success')
     
-    if (!draft_id || !original_text || !corrected_text) {
-      return NextResponse.json(
-        { error: 'draft_id, original_text, and corrected_text are required' },
-        { status: 400 }
+      // Process correction using service
+      const span_process = addSpan(trace_id, 'process-correction')
+      const result = await processCorrection(
+        {
+          original_text: sanitized.original,
+          corrected_text: sanitized.corrected,
+          brain_id: brain.id,
+          current_rules: brain.rules || [],
+          current_score: brain.voice_match_score
+        },
+        groq
       )
-    }
-    
-    const supabase = getSupabase()
-    
-    // Get the brain associated with this draft
-    const { data: draft } = await supabase
-      .from('drafts')
-      .select('brain_id')
-      .eq('id', draft_id)
-      .single()
-    
-    if (!draft || !draft.brain_id) {
-      return NextResponse.json(
-        { error: 'Draft or brain not found' },
-        { status: 404 }
-      )
-    }
-    
-    // Get current brain data
-    const { data: brain } = await supabase
-      .from('brand_brains')
-      .select('*')
-      .eq('id', draft.brain_id)
-      .single()
-    
-    if (!brain) {
-      return NextResponse.json(
-        { error: 'Brain not found' },
-        { status: 404 }
-      )
-    }
-    
-    // Intelligent rule extraction with diff analysis + Groq
-    console.log('[LEARN] Analyzing diff...')
-    const diffAnalysis = analyzeDiff(original_text, corrected_text)
-    console.log('[LEARN] Diff analysis:', JSON.stringify(diffAnalysis, null, 2))
-    
-    // Use Groq to extract a specific, actionable rule
-    console.log('[LEARN] Extracting rule with Groq...')
-    const groq = getGroq()
-    const rulePrompt = `Analiza esta corrección y extrae UNA regla específica y accionable.
-
-TEXTO ORIGINAL:
-${original_text}
-
-TEXTO CORREGIDO:
-${corrected_text}
-
-CAMBIOS DETECTADOS:
-- Palabras eliminadas: ${diffAnalysis.wordsRemoved.join(', ') || 'ninguna'}
-- Palabras agregadas: ${diffAnalysis.wordsAdded.join(', ') || 'ninguna'}
-- Cambios de estructura: ${diffAnalysis.structureChanges.lengthChange > 0 ? 'más largo' : diffAnalysis.structureChanges.lengthChange < 0 ? 'más corto' : 'similar'}
-- Hashtags cambiados: ${diffAnalysis.structureChanges.hasHashtagChanges ? 'sí' : 'no'}
-
-Extrae UNA regla específica en formato:
-"[ACCIÓN]: [RAZÓN]"
-
-Ejemplos:
-- "Usar 'herramientas' en lugar de 'soluciones': más concreto y accionable"
-- "Evitar hashtags genéricos: prefiere términos específicos"
-- "Acortar frases: mantener bajo 280 caracteres"
-
-Responde SOLO con la regla, sin explicaciones adicionales.`
-
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: 'Eres un experto en análisis de estilo de escritura. Extraes reglas específicas y accionables.' },
-        { role: 'user', content: rulePrompt }
-      ],
-      temperature: 0.3,
-      max_tokens: 150
-    })
-    
-    const ruleText = normalizeUTF8(completion.choices[0]?.message?.content?.trim() || 'Corrección aplicada: preferencia del usuario')
-    console.log('[LEARN] Extracted rule:', ruleText)
-    
-    // Determine primary category from diff analysis
-    const primaryCategory = diffAnalysis.categories[0] || 'tone'
-    
-    // Calculate confidence based on clarity of changes
-    const confidence = calculateConfidence(diffAnalysis)
-    
-    const extractedRule = {
-      rule: ruleText,
-      category: primaryCategory,
-      confidence,
-      examples: {
-        before: original_text.slice(0, 100),
-        after: corrected_text.slice(0, 100)
-      },
-      created_at: new Date().toISOString()
-    }
-    
-    console.log('[LEARN] Final rule:', JSON.stringify(extractedRule, null, 2))
-    
-    // Save correction to database
-    const { data: correction, error: correctionError } = await supabase
-      .from('corrections')
-      .insert({
-        user_id: TEST_USER_ID,
-        draft_id,
-        brain_id: draft.brain_id,
-        original_text,
-        corrected_text,
-        extracted_rule: extractedRule,
-        applied_to_brain: true
+      endSpan(trace_id, span_process, 'success', {
+        isDuplicate: result.isDuplicate,
+        scoreDelta: result.scoreDelta
       })
-      .select()
-      .single()
+      
+      // Track cost (estimate: ~300 prompt + ~50 completion tokens)
+      trackCost(
+        'voice-learning',
+        'llama-3.3-70b-versatile',
+        300,
+        50,
+        trace_id,
+        { draft_id }
+      )
+      
+      // Filter extracted rule
+      const span_filter = addSpan(trace_id, 'filter-rule')
+      const filtered = filterOutput(result.extractedRule.rule)
+      endSpan(trace_id, span_filter, 'success', { flags: filtered.flags })
+      
+      if (!filtered.safe) {
+        console.warn('[LEARN] Rule flagged:', filtered.flags)
+      }
+      
+      const finalRule = {
+        ...result.extractedRule,
+        rule: filtered.filtered
+      }
     
-    if (correctionError) {
-      console.error('Failed to save correction:', correctionError)
+      // Save correction
+      const span_save = addSpan(trace_id, 'save-correction')
+      const { data: correction, error: correctionError } = await supabase
+        .from('corrections')
+        .insert({
+          user_id: TEST_USER_ID,
+          draft_id,
+          brain_id: draft.brain_id,
+          original_text: sanitized.original,
+          corrected_text: sanitized.corrected,
+          extracted_rule: finalRule,
+          applied_to_brain: true,
+          metadata: {
+            trace_id,
+            filtered_flags: filtered.flags
+          }
+        })
+        .select()
+        .single()
+      endSpan(trace_id, span_save, correctionError ? 'error' : 'success')
+      
+      if (correctionError) {
+        console.error('Failed to save correction:', correctionError)
+        return NextResponse.json(
+          { error: 'Failed to save correction' },
+          { status: 500 }
+        )
+      }
+    
+      // Update brain using services
+      const span_update = addSpan(trace_id, 'update-brain')
+      
+      // Add rule (with deduplication)
+      if (!result.isDuplicate) {
+        const ruleAdded = await addRuleToBrain(
+          brain.id,
+          finalRule,
+          brain.rules || [],
+          supabase
+        )
+        if (!ruleAdded.success) {
+          endSpan(trace_id, span_update, 'error')
+          return NextResponse.json(
+            { error: 'Failed to add rule to brain' },
+            { status: 500 }
+          )
+        }
+      }
+      
+      // Increment corrections count
+      await incrementCorrections(brain.id, brain.corrections_count, supabase)
+      
+      // Update voice score
+      await updateVoiceScore(brain.id, result.newScore, supabase)
+      
+      endSpan(trace_id, span_update, 'success')
+    
+      return NextResponse.json({
+        success: true,
+        newRule: finalRule,
+        voiceMatchScore: result.newScore,
+        improvement: result.scoreDelta,
+        previousScore: brain.voice_match_score,
+        totalRules: result.isDuplicate ? brain.rules.length : brain.rules.length + 1,
+        totalCorrections: brain.corrections_count + 1,
+        trace_id
+      })
+      
+    } catch (error) {
+      console.error('Learn error:', error)
       return NextResponse.json(
-        { error: 'Failed to save correction' },
+        { error: 'Failed to learn from correction' },
         { status: 500 }
       )
     }
-    
-    // Add rule to brain (with deduplication)
-    const currentRules = brain.rules || []
-    
-    // Check if similar rule already exists
-    const ruleKey = ruleText.toLowerCase().trim()
-    const isDuplicate = currentRules.some((r: any) => 
-      (r.rule || '').toLowerCase().trim() === ruleKey
-    )
-    
-    let updatedRules = currentRules
-    if (!isDuplicate) {
-      updatedRules = [...currentRules, extractedRule]
-      console.log('[LEARN] New rule added (total:', updatedRules.length, ')')
-    } else {
-      console.log('[LEARN] Duplicate rule detected, skipping')
-    }
-    
-    // Calculate dynamic voice match score based on correction impact
-    console.log('[LEARN] Calculating voice match delta...')
-    const scoreDelta = calculateVoiceMatchDelta(
-      original_text,
-      corrected_text,
-      ruleText,
-      currentRules,
-      brain.voice_match_score
-    )
-    console.log('[LEARN] Score delta:', scoreDelta)
-    
-    const newScore = Math.max(0, Math.min(99, brain.voice_match_score + scoreDelta))
-    
-    // Update brain
-    const { error: updateError } = await supabase
-      .from('brand_brains')
-      .update({
-        rules: updatedRules,
-        corrections_count: brain.corrections_count + 1,
-        voice_match_score: newScore
-      })
-      .eq('id', draft.brain_id)
-    
-    if (updateError) {
-      console.error('Failed to update brain:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to update brain' },
-        { status: 500 }
-      )
-    }
-    
-    return NextResponse.json({
-      success: true,
-      newRule: extractedRule,
-      voiceMatchScore: newScore,
-      improvement: scoreDelta,
-      previousScore: brain.voice_match_score,
-      totalRules: updatedRules.length,
-      totalCorrections: brain.corrections_count + 1
-    })
-    
-  } catch (error) {
-    console.error('Learn error:', error)
-    return NextResponse.json(
-      { error: 'Failed to learn from correction' },
-      { status: 500 }
-    )
-  }
-}
-
-/**
- * Calculate confidence score based on diff analysis
- */
-function calculateConfidence(diffAnalysis: any): number {
-  let confidence = 70 // Base confidence
-  
-  // More specific word changes = higher confidence
-  if (diffAnalysis.wordsRemoved.length > 0 && diffAnalysis.wordsAdded.length > 0) {
-    confidence += 10
-  }
-  
-  // Phrase-level changes = higher confidence
-  if (diffAnalysis.phrasesChanged.length > 0) {
-    confidence += 10
-  }
-  
-  // Multiple categories = more comprehensive change = higher confidence
-  if (diffAnalysis.categories.length > 1) {
-    confidence += 5
-  }
-  
-  return Math.min(confidence, 95)
+  }, { user_id: TEST_USER_ID })
 }
