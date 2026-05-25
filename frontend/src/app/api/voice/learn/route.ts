@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import Groq from 'groq-sdk'
 import { analyzeDiff } from '@/lib/diff/analyzer'
+import { calculateVoiceMatchDelta } from '@/lib/voice/scorer'
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -150,8 +151,18 @@ Responde SOLO con la regla, sin explicaciones adicionales.`
     const currentRules = brain.rules || []
     const updatedRules = [...currentRules, extractedRule]
     
-    // Calculate new voice match score (progressive improvement)
-    const newScore = Math.min(brain.voice_match_score + 2, 99)
+    // Calculate dynamic voice match score based on correction impact
+    console.log('[LEARN] Calculating voice match delta...')
+    const scoreDelta = calculateVoiceMatchDelta(
+      original_text,
+      corrected_text,
+      ruleText,
+      currentRules,
+      brain.voice_match_score
+    )
+    console.log('[LEARN] Score delta:', scoreDelta)
+    
+    const newScore = Math.max(0, Math.min(99, brain.voice_match_score + scoreDelta))
     
     // Update brain
     const { error: updateError } = await supabase
@@ -175,7 +186,8 @@ Responde SOLO con la regla, sin explicaciones adicionales.`
       success: true,
       newRule: extractedRule,
       voiceMatchScore: newScore,
-      improvement: 2,
+      improvement: scoreDelta,
+      previousScore: brain.voice_match_score,
       totalRules: updatedRules.length,
       totalCorrections: brain.corrections_count + 1
     })
