@@ -21,3 +21,12 @@ https://nextjs.org/telemetry
  GET /?_cb=1779724845751 200 in 34ms
  GET /?_cb=1779724872330 200 in 36ms
  GET /?_cb=1779724872330 200 in 31ms
+ ✓ Compiled in 434ms (462 modules)
+ ✓ Compiled in 355ms (238 modules)
+ ✓ Compiled in 497ms (458 modules)
+ ✓ Compiled in 155ms (236 modules)
+ ✓ Compiled in 304ms (236 modules)
+ GET / 200 in 94ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 688ms (497 modules)
+ GET /dashboard 200 in 782ms
