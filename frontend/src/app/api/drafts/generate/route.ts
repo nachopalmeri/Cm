@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import Groq from 'groq-sdk'
+import { normalizeUTF8 } from '@/lib/encoding/utf8'
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -22,7 +23,13 @@ export async function POST(req: NextRequest) {
     console.log('[GENERATE] Starting draft generation...')
     const supabase = getSupabase()
     const groq = getGroq()
-    const { topic, channel, format } = await req.json()
+    const body = await req.json()
+    
+    // Normalize UTF-8 in request body
+    const topic = normalizeUTF8(body.topic || '')
+    const channel = body.channel
+    const format = body.format
+    
     console.log('[GENERATE] Request params:', { topic, channel, format })
     
     if (!topic || !channel) {
@@ -111,7 +118,7 @@ IMPORTANT:
       max_tokens: 1000
     })
     
-    const content = completion.choices[0]?.message?.content || ''
+    const content = normalizeUTF8(completion.choices[0]?.message?.content || '')
     console.log('[GENERATE] Content generated:', content.slice(0, 100) + '...')
     
     // Save draft to database
@@ -121,7 +128,7 @@ IMPORTANT:
       .insert({
         user_id: TEST_USER_ID,
         brain_id: brain.id,
-        title: topic.slice(0, 100),
+        title: topic.slice(0, 100), // Already normalized
         content,
         channel,
         format: format || (channel === 'twitter' && content.includes('1.') ? 'thread' : 'post'),

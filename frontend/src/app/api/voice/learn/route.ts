@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import Groq from 'groq-sdk'
 import { analyzeDiff } from '@/lib/diff/analyzer'
 import { calculateVoiceMatchDelta } from '@/lib/voice/scorer'
+import { normalizeUTF8 } from '@/lib/encoding/utf8'
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -21,7 +22,12 @@ function getGroq() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { draft_id, original_text, corrected_text } = await req.json()
+    const body = await req.json()
+    
+    // Normalize UTF-8 in request body
+    const draft_id = body.draft_id
+    const original_text = normalizeUTF8(body.original_text || '')
+    const corrected_text = normalizeUTF8(body.corrected_text || '')
     
     if (!draft_id || !original_text || !corrected_text) {
       return NextResponse.json(
@@ -102,7 +108,7 @@ Responde SOLO con la regla, sin explicaciones adicionales.`
       max_tokens: 150
     })
     
-    const ruleText = completion.choices[0]?.message?.content?.trim() || 'Corrección aplicada: preferencia del usuario'
+    const ruleText = normalizeUTF8(completion.choices[0]?.message?.content?.trim() || 'Corrección aplicada: preferencia del usuario')
     console.log('[LEARN] Extracted rule:', ruleText)
     
     // Determine primary category from diff analysis
@@ -147,9 +153,22 @@ Responde SOLO con la regla, sin explicaciones adicionales.`
       )
     }
     
-    // Add rule to brain
+    // Add rule to brain (with deduplication)
     const currentRules = brain.rules || []
-    const updatedRules = [...currentRules, extractedRule]
+    
+    // Check if similar rule already exists
+    const ruleKey = ruleText.toLowerCase().trim()
+    const isDuplicate = currentRules.some((r: any) => 
+      (r.rule || '').toLowerCase().trim() === ruleKey
+    )
+    
+    let updatedRules = currentRules
+    if (!isDuplicate) {
+      updatedRules = [...currentRules, extractedRule]
+      console.log('[LEARN] New rule added (total:', updatedRules.length, ')')
+    } else {
+      console.log('[LEARN] Duplicate rule detected, skipping')
+    }
     
     // Calculate dynamic voice match score based on correction impact
     console.log('[LEARN] Calculating voice match delta...')
