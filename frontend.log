@@ -30,3 +30,4 @@ https://nextjs.org/telemetry
  ○ Compiling /dashboard ...
  ✓ Compiled /dashboard in 688ms (497 modules)
  GET /dashboard 200 in 782ms
+ GET /?_cb=1779726076327 200 in 60ms
