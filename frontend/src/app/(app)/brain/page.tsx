@@ -3,33 +3,34 @@
 import { useState, useEffect } from "react";
 
 interface Draft {
-  id: number;
+  id: string;
+  user_id: string;
+  brain_id: string | null;
   title: string;
   content: string;
-  status: "draft" | "pending" | "approved";
-  channel: string;
-  corrections: number;
+  channel: 'twitter' | 'linkedin' | 'substack' | 'tiktok' | 'general';
+  format?: 'thread' | 'post' | 'newsletter' | 'script';
+  status: 'draft' | 'pending' | 'approved' | 'published' | 'rejected' | 'archived';
+  voice_match_score: number | null;
+  violations: any[] | null;
+  corrections_count: number;
+  metadata: any;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface LearnedRule {
-  id: number;
   rule: string;
-  source: string;
-  date: string;
+  category: 'vocabulary' | 'structure' | 'tone' | 'format';
+  confidence: number;
+  examples?: {
+    before: string;
+    after: string;
+  };
+  created_at: string;
 }
 
-const initialDrafts: Draft[] = [
-  { id: 1, title: "Thread: Por qué los agentes sin memoria son autocomplete con traje", content: "Los agentes de IA sin memoria persistente son básicamente autocomplete con una interfaz bonita. No recuerdan quién sos, no aprenden de correcciones, y cada sesión empieza desde cero. Eso no es inteligencia, es magia barata.", status: "approved", channel: "X", corrections: 2 },
-  { id: 2, title: "Newsletter: La infraestructura de marca en 2025", content: "La marca ya no se construye con posts aislados. Se construye con sistemas que memorizan tu voz, protegen tu tono y ejecutan distribución multicanal mientras vos dormís.", status: "pending", channel: "Substack", corrections: 1 },
-  { id: 3, title: "LinkedIn: Cómo escalar voz sin perder autenticidad", content: "El mayor miedo de los founders al usar IA para contenido: perder la voz personal. La solución no es escribir menos con IA. Es construir un Brand Brain que entienda TU voz.", status: "draft", channel: "LinkedIn", corrections: 0 },
-];
-
-const initialRules: LearnedRule[] = [
-  { id: 1, rule: "Evitar buzzwords y frases genéricas de IA", source: "Corrección en draft #1", date: "2 días" },
-  { id: 2, rule: "Abrir con una tesis fuerte, nunca con contexto", source: "Corrección en draft #1", date: "2 días" },
-  { id: 3, rule: "Usar frases cortas. Máximo 20 palabras por oración.", source: "Corrección en draft #2", date: "1 día" },
-  { id: 4, rule: "Priorizar velocidad y claridad sobre sofisticación", source: "Brain Builder inicial", date: "3 días" },
-];
 
 export default function BrainPage() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -41,6 +42,8 @@ export default function BrainPage() {
   const [sampleTexts, setSampleTexts] = useState<string[]>([]);
   const [newSampleText, setNewSampleText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Fetch brain data on mount
   useEffect(() => {
@@ -51,14 +54,27 @@ export default function BrainPage() {
   const fetchBrainData = async () => {
     try {
       const res = await fetch('/api/brain');
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      
       const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
       if (data.brain) {
         setVoiceMatch(data.brain.voice_match_score || 85);
         setRules(data.brain.rules || []);
         setSampleTexts(data.brain.sample_texts || []);
+      } else {
+        throw new Error('No brain data received');
       }
     } catch (error) {
       console.error('Failed to fetch brain:', error);
+      setError('No se pudo cargar tu Brand Brain. Recarga la página.');
     } finally {
       setLoading(false);
     }
@@ -67,28 +83,55 @@ export default function BrainPage() {
   const fetchDrafts = async () => {
     try {
       const res = await fetch('/api/drafts?limit=10');
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      
       const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
       setDrafts(data.drafts || []);
     } catch (error) {
       console.error('Failed to fetch drafts:', error);
+      // No bloqueante - solo log
     }
   };
 
   const addSampleText = async () => {
     if (!newSampleText.trim()) return;
+    
+    setLoading(true);
     try {
       const updatedTexts = [...sampleTexts, newSampleText];
-      await fetch('/api/brain', {
+      const res = await fetch('/api/brain', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sample_texts: updatedTexts })
       });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
       setSampleTexts(updatedTexts);
       setNewSampleText("");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 2500);
     } catch (error) {
       console.error('Failed to add sample text:', error);
+      setError('No se pudo guardar el texto. Intenta de nuevo.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -100,7 +143,7 @@ export default function BrainPage() {
   const saveCorrection = async () => {
     if (!selectedDraft) return;
     // This will be implemented when voice/learn API is ready
-    const updated = drafts.map((d) => d.id === selectedDraft.id ? { ...d, content: editText, corrections: d.corrections + 1 } : d);
+    const updated = drafts.map((d) => d.id === selectedDraft.id ? { ...d, content: editText, corrections_count: d.corrections_count + 1 } : d);
     setDrafts(updated);
     setSelectedDraft(null);
     setShowToast(true);
@@ -114,6 +157,19 @@ export default function BrainPage() {
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold text-slate-900">Brand Brain</h1>
+
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed top-6 right-6 z-50 rounded-xl bg-red-50 border border-red-200 px-5 py-3 text-sm font-medium text-red-900 shadow-lg flex items-center gap-3">
+          <span>{error}</span>
+          <button 
+            onClick={() => setError(null)}
+            className="text-red-600 hover:text-red-800 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Upload Sample Text */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -166,7 +222,7 @@ export default function BrainPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-900">Reglas activas</h2>
           <p className="mt-2 text-3xl font-bold text-slate-900">{rules.length}</p>
-          <p className="mt-1 text-xs text-slate-500">{drafts.reduce((a, b) => a + b.corrections, 0)} correcciones aplicadas</p>
+          <p className="mt-1 text-xs text-slate-500">{drafts.reduce((a, b) => a + b.corrections_count, 0)} correcciones aplicadas</p>
         </div>
       </div>
 
@@ -180,7 +236,7 @@ export default function BrainPage() {
             <div key={d.id} className="flex items-center justify-between px-6 py-4">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-900">{d.title}</p>
-                <p className="text-xs text-slate-500">{d.channel} · {d.corrections} correcciones</p>
+                <p className="text-xs text-slate-500">{d.channel} · {d.corrections_count} correcciones</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${d.status === "approved" ? "bg-green-50 text-green-700" : d.status === "pending" ? "bg-yellow-50 text-yellow-700" : "bg-slate-100 text-slate-600"}`}>
@@ -209,8 +265,12 @@ export default function BrainPage() {
               <button onClick={() => setSelectedDraft(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
                 Cancelar
               </button>
-              <button onClick={saveCorrection} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700">
-                Guardar corrección
+              <button 
+                onClick={saveCorrection} 
+                disabled={saving}
+                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
+              >
+                {saving ? 'Guardando...' : 'Guardar corrección'}
               </button>
             </div>
           </div>
@@ -221,15 +281,32 @@ export default function BrainPage() {
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-900">Historial de aprendizaje</h2>
         <div className="mt-4 space-y-3">
-          {rules.map((r) => (
-            <div key={r.id} className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-              <span className="mt-0.5 text-brand-600">✓</span>
-              <div>
-                <p className="text-sm font-medium text-slate-900">{r.rule}</p>
-                <p className="text-xs text-slate-500">{r.source} · {r.date}</p>
+          {rules.length === 0 ? (
+            <p className="text-sm text-slate-500">No hay reglas aprendidas aún. Corrige drafts para que el sistema aprenda tu estilo.</p>
+          ) : (
+            rules.map((r, idx) => (
+              <div key={idx} className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
+                <span className="mt-0.5 text-brand-600">✓</span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-slate-900">{r.rule}</p>
+                    <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
+                      {r.category}
+                    </span>
+                  </div>
+                  {r.examples && (
+                    <div className="mt-2 text-xs text-slate-600">
+                      <p>❌ Antes: "{r.examples.before}"</p>
+                      <p className="mt-1">✅ Ahora: "{r.examples.after}"</p>
+                    </div>
+                  )}
+                  <p className="mt-1 text-xs text-slate-500">
+                    Confianza: {r.confidence}% · {new Date(r.created_at).toLocaleDateString()}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 

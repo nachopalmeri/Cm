@@ -2,10 +2,20 @@
 
 import { useState, useEffect } from 'react';
 
+interface Draft {
+  id: string;
+  title: string;
+  content: string;
+  channel: string;
+  status: string;
+  voice_match_score: number | null;
+  created_at: string;
+}
+
 export default function DashboardPage() {
   const [voiceMatch, setVoiceMatch] = useState(85);
   const [correctionsCount, setCorrectionsCount] = useState(0);
-  const [drafts, setDrafts] = useState<any[]>([]);
+  const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [generating, setGenerating] = useState(false);
