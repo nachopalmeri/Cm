@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import Groq from 'groq-sdk'
 import { generateDraft } from '@/lib/services/draft-generation'
 import { getActiveBrain } from '@/lib/services/brain-manager'
@@ -7,6 +7,8 @@ import { traceAsync, addSpan, endSpan } from '@/lib/observability/tracer'
 import { trackCost } from '@/lib/observability/cost-tracker'
 import { validateTopic, checkRateLimit } from '@/lib/security/input-guard'
 import { filterOutput } from '@/lib/security/output-guard'
+import { reviewDraft } from '@/lib/services/editor-agent'
+import { BrainData } from '@/lib/services/brain-manager'
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -152,6 +154,10 @@ export async function POST(req: NextRequest) {
       }
       
       console.log('[GENERATE] Draft saved successfully:', draft.id)
+      
+      // Auto-review (async, don't block response)
+      reviewDraftAsync(draft.id, finalContent, brain, channel || 'twitter', supabase)
+      
       return NextResponse.json({ draft, trace_id })
     
     } catch (error) {
@@ -166,4 +172,41 @@ export async function POST(req: NextRequest) {
       )
     }
   }, { user_id: TEST_USER_ID })
+}
+
+/**
+ * Auto-review draft in background
+ */
+async function reviewDraftAsync(
+  draft_id: string,
+  content: string,
+  brain: BrainData,
+  channel: string,
+  supabase: SupabaseClient<any>
+) {
+  try {
+    console.log('[AUTO-REVIEW] Starting review for draft:', draft_id)
+    
+    const review = await reviewDraft(content, brain, channel)
+    
+    console.log('[AUTO-REVIEW] Generated', review.comments.length, 'comments')
+    
+    // Save comments to database
+    for (const comment of review.comments) {
+      await supabase.from('draft_comments').insert({
+        draft_id,
+        user_id: TEST_USER_ID,
+        type: 'agent',
+        severity: comment.severity,
+        category: comment.category,
+        content: comment.content,
+        metadata: comment.metadata
+      })
+    }
+    
+    console.log('[AUTO-REVIEW] Review complete. Score:', review.overall_score)
+  } catch (error) {
+    console.error('[AUTO-REVIEW] Error:', error)
+    // Don't throw - review is nice-to-have, not critical
+  }
 }
