@@ -19,11 +19,14 @@ function getGroq() {
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('[GENERATE] Starting draft generation...')
     const supabase = getSupabase()
     const groq = getGroq()
     const { topic, channel, format } = await req.json()
+    console.log('[GENERATE] Request params:', { topic, channel, format })
     
     if (!topic || !channel) {
+      console.log('[GENERATE] Missing required params')
       return NextResponse.json(
         { error: 'topic and channel are required' },
         { status: 400 }
@@ -31,6 +34,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Get user's brand brain with sample texts
+    console.log('[GENERATE] Fetching brand brain...')
     const { data: brain, error: brainError } = await supabase
       .from('brand_brains')
       .select('*')
@@ -39,11 +43,13 @@ export async function POST(req: NextRequest) {
       .single()
     
     if (brainError || !brain) {
+      console.error('[GENERATE] Brain fetch error:', brainError)
       return NextResponse.json(
         { error: 'Brand brain not found' },
         { status: 404 }
       )
     }
+    console.log('[GENERATE] Brain found:', brain.id)
     
     // Build prompt with sample texts
     const sampleTexts = brain.sample_texts || []
@@ -94,6 +100,7 @@ IMPORTANT:
 - Be authentic to the brand voice`
 
     // Generate with Groq
+    console.log('[GENERATE] Calling Groq API...')
     const completion = await groq.chat.completions.create({
       model: 'llama-3.1-70b-versatile',
       messages: [
@@ -105,8 +112,10 @@ IMPORTANT:
     })
     
     const content = completion.choices[0]?.message?.content || ''
+    console.log('[GENERATE] Content generated:', content.slice(0, 100) + '...')
     
     // Save draft to database
+    console.log('[GENERATE] Saving draft to Supabase...')
     const { data: draft, error: draftError } = await supabase
       .from('drafts')
       .insert({
@@ -128,19 +137,26 @@ IMPORTANT:
       .single()
     
     if (draftError) {
-      console.error('Failed to save draft:', draftError)
+      console.error('[GENERATE] Failed to save draft:', draftError)
       return NextResponse.json(
-        { error: 'Failed to save draft' },
+        { error: 'Failed to save draft', details: draftError.message },
         { status: 500 }
       )
     }
     
+    console.log('[GENERATE] Draft saved successfully:', draft.id)
     return NextResponse.json({ draft })
     
   } catch (error) {
     console.error('Draft generation error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : ''
+    console.error('Error details:', { errorMessage, errorStack })
     return NextResponse.json(
-      { error: 'Failed to generate draft' },
+      { 
+        error: 'Failed to generate draft',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      },
       { status: 500 }
     )
   }
