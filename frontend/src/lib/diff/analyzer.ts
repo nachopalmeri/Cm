@@ -115,7 +115,8 @@ function hasHashtagDiff(original: string, corrected: string): boolean {
  * Check if emojis changed
  */
 function hasEmojiDiff(original: string, corrected: string): boolean {
-  const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu
+  // Simple emoji detection without unicode property escapes
+  const emojiRegex = /[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]/g
   const originalEmojis = (original.match(emojiRegex) || []).sort()
   const correctedEmojis = (corrected.match(emojiRegex) || []).sort()
   return JSON.stringify(originalEmojis) !== JSON.stringify(correctedEmojis)
