@@ -102,7 +102,7 @@ IMPORTANT:
     // Generate with Groq
     console.log('[GENERATE] Calling Groq API...')
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.1-70b-versatile',
+      model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Topic: ${topic}` }
@@ -130,7 +130,7 @@ IMPORTANT:
         metadata: {
           topic,
           generated_at: new Date().toISOString(),
-          model: 'llama-3.1-70b-versatile'
+          model: 'llama-3.3-70b-versatile'
         }
       })
       .select()

@@ -1,26 +1,6 @@
 {
   "version": 3,
-  "middleware": {
-    "/": {
-      "files": [
-        "prerender-manifest.js",
-        "server/edge-runtime-webpack.js",
-        "server/src/middleware.js"
-      ],
-      "name": "src/middleware",
-      "page": "/",
-      "matchers": [],
-      "wasm": [],
-      "assets": [],
-      "environments": {
-        "previewModeId": "416896bd71fd7ce0e61bdd16ea5d29bd",
-        "previewModeSigningKey": "b62106bfb4afaf176ce3f54fea00cd805f4da70fc297cdcb4f01588c33c68184",
-        "previewModeEncryptionKey": "d2a7089ec036eba7b90de0da580caf8fb3585af1f0579b13e81ccfe921a80104"
-      }
-    }
-  },
+  "middleware": {},
   "functions": {},
-  "sortedMiddleware": [
-    "/"
-  ]
+  "sortedMiddleware": []
 }
