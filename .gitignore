@@ -45,3 +45,13 @@ htmlcov/
 
 # Local artifacts
 results.txt
+
+# Node
+node_modules/
+.next/
+
+# Logs
+*.log
+
+# Agent artifacts
+.orchids/
