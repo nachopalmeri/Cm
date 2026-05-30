@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -9,7 +9,7 @@ import type { User } from "@supabase/supabase-js";
 const nav = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/brain", label: "Brand Brain" },
-  { href: "/content", label: "Content" },
+  { href: "/content", label: "Editor" },
   { href: "/settings", label: "Settings" },
 ];
 

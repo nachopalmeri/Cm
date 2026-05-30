@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Draft {
   id: string;
@@ -17,6 +18,7 @@ export default function DashboardPage() {
   const [correctionsCount, setCorrectionsCount] = useState(0);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [topic, setTopic] = useState('');
