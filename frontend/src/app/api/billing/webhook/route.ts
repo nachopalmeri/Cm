@@ -1,15 +1,20 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 import { createServiceClient } from '@/lib/auth/supabase-server'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
-
 export async function POST(req: NextRequest) {
+  const stripeSecret = process.env.STRIPE_SECRET_KEY
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+  if (!stripeSecret || !webhookSecret) {
+    return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
+  }
+
+  const { Stripe } = await import('stripe')
+  const stripe = new Stripe(stripeSecret, { apiVersion: '2026-05-27.dahlia' as any })
+
   const payload = await req.text()
   const signature = req.headers.get('stripe-signature') || ''
 
-  let event: Stripe.Event
+  let event: any
   try {
     event = stripe.webhooks.constructEvent(payload, signature, webhookSecret)
   } catch (err) {
@@ -21,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   switch (event.type) {
     case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session
+      const session = event.data.object
       const userId = session.metadata?.user_id
       if (!userId) break
 
@@ -33,7 +38,7 @@ export async function POST(req: NextRequest) {
       break
     }
     case 'customer.subscription.deleted': {
-      const subscription = event.data.object as Stripe.Subscription
+      const subscription = event.data.object
       await supabase.from('profiles').update({ plan: 'free' }).eq('stripe_subscription_id', subscription.id)
       break
     }
