@@ -13,9 +13,16 @@ interface Draft {
   created_at: string;
 }
 
+interface Brain {
+  voice_match_score: number;
+  corrections_count: number;
+  rules: { rule: string; category: string }[];
+}
+
 export default function DashboardPage() {
-  const [voiceMatch, setVoiceMatch] = useState(85);
+  const [voiceMatch, setVoiceMatch] = useState(0);
   const [correctionsCount, setCorrectionsCount] = useState(0);
+  const [rulesCount, setRulesCount] = useState(0);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -37,10 +44,18 @@ export default function DashboardPage() {
       ]);
       const brainData = await brainRes.json();
       const draftsData = await draftsRes.json();
-      
+
       if (brainData.brain) {
-        setVoiceMatch(brainData.brain.voice_match_score || 85);
+        setVoiceMatch(brainData.brain.voice_match_score || 0);
         setCorrectionsCount(brainData.brain.corrections_count || 0);
+        setRulesCount(brainData.brain.rules?.length || 0);
+        if (!brainData.brain.sample_texts || brainData.brain.sample_texts.length === 0) {
+          router.push('/onboarding');
+          return;
+        }
+      } else {
+        router.push('/onboarding');
+        return;
       }
       setDrafts(draftsData.drafts || []);
     } catch (error) {
@@ -73,82 +88,88 @@ export default function DashboardPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen"><div className="text-slate-600">Loading...</div></div>;
+    return <div className="flex items-center justify-center min-h-[60vh]"><div className="text-white/40 text-sm">Loading...</div></div>;
   }
+
   const stats = [
     { label: "Drafts este mes", value: drafts.length.toString() },
-    { label: "Voice match", value: `${voiceMatch}%` },
-    { label: "Agentes activos", value: "4" },
-    { label: "Correcciones aplicadas", value: correctionsCount.toString() },
+    { label: "Voice match", value: voiceMatch + "%" },
+    { label: "Reglas activas", value: rulesCount.toString() },
+    { label: "Correcciones", value: correctionsCount.toString() },
   ];
-
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+          className="rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
         >
           Generate Draft
         </button>
       </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
-          <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-medium text-slate-500">{s.label}</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{s.value}</p>
+          <div key={s.label} className="rounded-xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-sm">
+            <p className="text-xs font-medium text-white/40">{s.label}</p>
+            <p className="mt-2 text-2xl font-bold text-white">{s.value}</p>
           </div>
         ))}
       </div>
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-6 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">Contenido reciente</h2>
+
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+        <div className="border-b border-white/10 px-6 py-4">
+          <h2 className="text-sm font-semibold text-white/70">Contenido reciente</h2>
         </div>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-white/5">
           {drafts.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-slate-500">
+            <div className="px-6 py-8 text-center text-sm text-white/30">
               No drafts yet. Click "Generate Draft" to create your first one.
             </div>
           ) : (
             drafts.map((item) => (
-            <div key={item.title} className="flex items-center justify-between px-6 py-4">
-              <div>
-                <p className="text-sm font-medium text-slate-900">{item.title}</p>
-                <p className="text-xs text-slate-500">{item.channel}</p>
+              <div key={item.id} className="flex items-center justify-between px-6 py-4">
+                <div>
+                  <p className="text-sm font-medium text-white">{item.title}</p>
+                  <p className="text-xs text-white/30">{item.channel}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={"text-xs px-2 py-0.5 rounded " + (item.voice_match_score && item.voice_match_score >= 80 ? "bg-green-500/10 text-green-400" : "bg-yellow-500/10 text-yellow-400")}>
+                    {item.voice_match_score || 0}%
+                  </span>
+                  <span className={"rounded-full px-2.5 py-1 text-xs font-medium " + (item.status === "approved" ? "bg-green-500/10 text-green-400" : item.status === "pending" ? "bg-yellow-500/10 text-yellow-400" : "bg-white/5 text-white/40")}>
+                    {item.status}
+                  </span>
+                </div>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${item.status === "approved" ? "bg-green-50 text-green-700" : item.status === "pending" ? "bg-yellow-50 text-yellow-700" : "bg-slate-100 text-slate-600"}`}>
-                {item.status}
-              </span>
-            </div>
-          ))
+            ))
           )}
         </div>
       </div>
 
-      {/* Generate Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-slate-900">Generate Draft</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0a0f] p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">Generate Draft</h3>
             <div className="mt-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Topic</label>
+                <label className="block text-xs font-medium text-white/60 mb-1.5">Topic</label>
                 <input
                   type="text"
                   value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="e.g., Por qué los builders latinos necesitan mejores herramientas"
-                  className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none focus:border-brand-500"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTopic(e.target.value)}
+                  placeholder="e.g., Por que los builders latinos necesitan mejores herramientas"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder-white/30 outline-none focus:border-purple-500/50"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Channel</label>
+                <label className="block text-xs font-medium text-white/60 mb-1.5">Channel</label>
                 <select
                   value={channel}
-                  onChange={(e) => setChannel(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none focus:border-brand-500"
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setChannel(e.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none focus:border-purple-500/50"
                 >
                   <option value="twitter">Twitter</option>
                   <option value="linkedin">LinkedIn</option>
@@ -156,11 +177,11 @@ export default function DashboardPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Format</label>
+                <label className="block text-xs font-medium text-white/60 mb-1.5">Format</label>
                 <select
                   value={format}
-                  onChange={(e) => setFormat(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none focus:border-brand-500"
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormat(e.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none focus:border-purple-500/50"
                 >
                   <option value="post">Post</option>
                   <option value="thread">Thread</option>
@@ -171,14 +192,14 @@ export default function DashboardPage() {
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white/60 transition hover:bg-white/5"
               >
                 Cancel
               </button>
               <button
                 onClick={generateDraft}
                 disabled={!topic.trim() || generating}
-                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
+                className="rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-30"
               >
                 {generating ? 'Generating...' : 'Generate'}
               </button>
