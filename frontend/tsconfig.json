@@ -1,4 +1,4 @@
-{
+﻿{
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
@@ -6,6 +6,7 @@
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
+    "target": "ES2015",
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
