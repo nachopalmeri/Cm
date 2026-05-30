@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
@@ -253,9 +253,9 @@ export default function Home() {
           </h2>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
-              { name: "Founder", price: "$499", period: "/mes", desc: "Para personal brands de founders que quieren escalar su voz sin perder autenticidad.", features: ["1 voz entrenada", "3 plataformas", "20 drafts/semana", "Approval-first", "Brand Brain básico"], cta: "Empezar", featured: false },
-              { name: "Brand System", price: "$2,499", period: "/mes", desc: "Para startups y empresas que gestionan múltiples voces de marca.", features: ["5 voces entrenadas", "Todas las plataformas", "Drafts ilimitados", "API access", "Team collaboration", "Analytics básico"], cta: "Solicitar demo", featured: true },
-              { name: "Enterprise", price: "Custom", period: "", desc: "Para agencias premium y marcas globales que necesitan white-label y control total.", features: ["Voces ilimitadas", "White-label", "SSO + SLA 99.9%", "CSM dedicado", "Custom integrations", "Audit logs"], cta: "Contactar ventas", featured: false },
+              { name: "Free", price: "$0", period: "", desc: "Probá Ghostwriter sin compromiso y descubrí el poder del Brand Brain.", features: ["5 drafts/mes", "1 Brand Brain", "Twitter only", "Agent review básico", "Voice learning"], cta: "Empezar gratis", featured: false },
+              { name: "Starter", price: "$12", period: "/mes", desc: "Para solopreneurs y creadores que quieren escalar su contenido.", features: ["30 drafts/mes", "1 Brand Brain", "Twitter + LinkedIn", "Agent review completo", "Voice learning ilimitado", "Email support"], cta: "Empezar", featured: false },
+              { name: "Pro", price: "$29", period: "/mes", desc: "Para founders y creators profesionales que necesitan m�xima velocidad.", features: ["100 drafts/mes", "1 Brand Brain", "Todos los canales", "Agent review completo", "Scheduling (pr�ximamente)", "Priority support"], cta: "Empezar", featured: true },
             ].map((plan) => (
               <div key={plan.name} className={`rounded-2xl border bg-white p-8 shadow-sm ${plan.featured ? "border-brand-300 ring-1 ring-brand-300" : "border-slate-200"}`}>
                 {plan.featured && <div className="mb-4 inline-block rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">RECOMENDADO</div>}
@@ -366,3 +366,5 @@ export default function Home() {
     </main>
   );
 }
+
+
